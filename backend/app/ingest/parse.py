@@ -1,5 +1,6 @@
 import datetime
-
+import json
+from zoneinfo import ZoneInfo
 import bs4
 import re
 
@@ -8,7 +9,8 @@ def _parse_room(room):
     match = re.search(r"\((\d+)\)", room.a.string)
     capacity = int(match.group(1))
     room_name = re.sub(r"\((\d+)\)", "", room.a.string).strip()
-    return room_name, capacity
+    room_id = int(re.search(r"rfilter=(\d+)", room.a["href"]).group(1))
+    return room_name, capacity, room_id
 
 
 with open("exampledata.html") as f:
@@ -17,6 +19,9 @@ with open("exampledata.html") as f:
     schedules = contents.find_all(class_="tableform")
     schedule_data = {
         "date": soup.find(id="labtime").get("value"),
+        "generated_at": datetime.datetime.now(
+        ZoneInfo("America/Toronto")
+    ).isoformat(timespec="seconds"),
         "buildings": []
     }
     
@@ -31,11 +36,12 @@ with open("exampledata.html") as f:
             "rooms": []
         }
         for room in rooms:
-            name, capacity = _parse_room(room)
+            name, capacity, room_id = _parse_room(room)
 
             room_data.append({
                 "name": name,
                 "capacity": capacity,
+                "id": room_id,
                 "events": []
             })
         print("\n")
@@ -68,21 +74,16 @@ with open("exampledata.html") as f:
                 remaining_spans[room_index] = span
 
                 
-                room_name = room_data[room_index]["name"]
-                capacity = room_data[room_index]["capacity"]
-                start_time = time
-                duration_minutes = span * 30
                 classes = cell.get("class", [])
-                description = cell.get_text(" ", strip=True)
                 
                 if "event" in classes:
-                    start = datetime.datetime.strptime(start_time, "%H:%M")
+                    start = datetime.datetime.strptime(time, "%H:%M")
                     end = start + datetime.timedelta(minutes=span * 30)
 
                     event = {
-                        "start_time": start_time,
+                        "start_time": time,
                         "end_time": end.strftime("%H:%M"),
-                        "description": description
+                        "description": cell.get_text(" ", strip=True)
                     }
 
                     room_data[room_index]["events"].append(event)
@@ -100,5 +101,6 @@ with open("exampledata.html") as f:
         schedule_data["buildings"].append(building_data)
 
     with open("output.json", "w+") as x:
-        x.write(schedule_data)
+        import json
+        json.dump(schedule_data, x)
         

@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from threading import Event
+from time import monotonic, sleep
 from uuid import UUID
 
 import pytest
@@ -162,6 +163,30 @@ def test_dataset_isolation_duplicates_and_timezone(candidate):
     assert candidate.scalar(text("SELECT count(*) FROM utscvacant.room_coverage")) == 0
 
 
+def test_dst_offsets_store_distinct_instants(candidate):
+    for key, offset in [("summer", "-04:00"), ("winter", "-05:00")]:
+        candidate.execute(
+            text("""
+                INSERT INTO utscvacant.meeting_occurrences
+                    (dataset_id,room_id,source_key,starts_at,ends_at,status)
+                VALUES (:dataset,1,:key,:start,:end,'scheduled')
+            """),
+            {
+                "dataset": DATASET,
+                "key": key,
+                "start": datetime.fromisoformat(f"2026-11-01T01:15:00{offset}"),
+                "end": datetime.fromisoformat(f"2026-11-01T01:45:00{offset}"),
+            },
+        )
+    starts = candidate.scalars(
+        text("SELECT starts_at FROM utscvacant.meeting_occurrences ORDER BY starts_at")
+    ).all()
+    assert starts == [
+        datetime(2026, 11, 1, 5, 15, tzinfo=UTC),
+        datetime(2026, 11, 1, 6, 15, tzinfo=UTC),
+    ]
+
+
 @pytest.mark.parametrize(
     "statement",
     [
@@ -308,10 +333,12 @@ def test_payload_write_waits_for_publication(postgres_engine):
             {"dataset": DATASET, "run": RUN},
         )
     started = Event()
+    writer_pid = []
 
     def late_insert():
         with postgres_engine.begin() as connection:
             connection.execute(text("SET LOCAL statement_timeout='5s'"))
+            writer_pid.append(connection.scalar(text("SELECT pg_backend_pid()")))
             started.set()
             connection.execute(
                 text("""
@@ -326,6 +353,7 @@ def test_payload_write_waits_for_publication(postgres_engine):
     # Roll back committed fixtures by database teardown, not by weakening immutable guards.
     with ThreadPoolExecutor(max_workers=1) as executor:
         with postgres_engine.begin() as connection:
+            publisher_pid = connection.scalar(text("SELECT pg_backend_pid()"))
             connection.execute(
                 text(
                     "UPDATE utscvacant.datasets SET published_at='2026-10-14T12:02:00Z' "
@@ -335,6 +363,17 @@ def test_payload_write_waits_for_publication(postgres_engine):
             )
             future = executor.submit(late_insert)
             assert started.wait(3)
-            assert not future.done()
+            with postgres_engine.connect() as observer:
+                deadline = monotonic() + 3
+                blocked = False
+                while monotonic() < deadline:
+                    blocked = observer.scalar(
+                        text("SELECT :publisher=ANY(pg_blocking_pids(:writer))"),
+                        {"publisher": publisher_pid, "writer": writer_pid[0]},
+                    )
+                    if blocked or future.done():
+                        break
+                    sleep(0.01)
+                assert blocked, "Payload write must block on the publishing transaction"
         with pytest.raises(IntegrityError, match="immutable"):
             future.result(timeout=6)

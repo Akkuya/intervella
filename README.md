@@ -10,11 +10,11 @@ UTSC's only bookable study space is the library, and it's small and almost alway
 
 ## How it works
 
-UTSC's intranet publishes a read-only classroom schedule per building and day (`classroomreadonly.action`). It lists every room, its capacity, and every scheduled class as a block of 30-minute slots. RoomFinder ingests that schedule, stores it, and computes "free now" / "free until X" on top of it.
+The existing HTML parser handles supplied classroom schedule snapshots. The PostgreSQL foundation stores stable rooms, versioned meeting occurrences, ingestion evidence, and explicit coverage. Live ingestion and availability queries remain unimplemented; source access and completeness still need verification.
 
 A room being "free" here means **no class is scheduled there right now**. It doesn't mean the room is unlocked, unoccupied by a club or exam, or otherwise guaranteed empty — see [Data source and limitations](#data-source-and-limitations).
 
-## Features
+## Planned features
 
 - **Free now**: list of rooms with no class currently running, filterable by building
 - **Free until**: how long a room stays free, so you're not walking into a room 5 minutes before a 300-person lecture
@@ -25,7 +25,7 @@ A room being "free" here means **no class is scheduled there right now**. It doe
 
 | Layer | Tech |
 | --- | --- |
-| Backend | Python, FastAPI, SQLModel, SQLite |
+| Backend | Python, FastAPI, SQLModel, PostgreSQL, Alembic, Psycopg 3 |
 | Ingestion | httpx, BeautifulSoup4, pandas |
 | Frontend | React, TypeScript, Vite, Tailwind CSS |
 | PWA | vite-plugin-pwa |
@@ -37,7 +37,7 @@ roomfinder/
 ├── backend/
 │   ├── app/
 │   │   ├── main.py          # FastAPI app + routes
-│   │   ├── models.py        # SQLModel tables (Building, Room, Meeting)
+│   │   ├── models.py        # Stable rooms, datasets, coverage, occurrences
 │   │   ├── db.py
 │   │   ├── services/
 │   │   │   ├── availability.py   # is a room free / free until when
@@ -57,7 +57,7 @@ roomfinder/
 
 - Source: UTSC intranet classroom schedule (behind UTORid login).
 - The schedule reflects **scheduled classes only**. It does not know about ad hoc bookings, exams, clubs already using a room, or locked doors. Treat "free" as "probably free," not a guarantee.
-- Data is refreshed periodically and cached locally so the app still works if a refresh fails.
+- Automated refresh and publication remain future work. The database foundation retains dataset versions and failed-run evidence.
 - All times are `America/Toronto`.
 
 ## Getting started
@@ -67,10 +67,13 @@ roomfinder/
 ```bash
 cd backend
 uv sync
-uv run uvicorn app.main:app --reload
+uv run pytest -m 'not postgres'
 ```
 
 ### Frontend
+
+For PostgreSQL setup, migrations, synthetic data, and integration tests, follow
+[backend development instructions](backend/README.md#postgresql-foundation).
 
 ```bash
 cd frontend

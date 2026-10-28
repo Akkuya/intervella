@@ -33,25 +33,25 @@
 
 Files: `backend/app/db.py`, `backend/pyproject.toml`, `backend/uv.lock`, `backend/tests/test_db.py`.
 
-- [ ] Write tests for required environment URLs, PostgreSQL/Psycopg validation, redacted failures, pool limits, and session lifecycle; observe failures.
-- [ ] Implement `database_url(variable: str = "DATABASE_URL") -> URL`, `create_db_engine(variable: str = "DATABASE_URL") -> Engine`, and `get_session()` without import-time connections. No credential fallback between roles.
-- [ ] Add Alembic/Psycopg dependencies, lock and sync; run configuration and parser tests; commit.
+- [x] Write tests for required environment URLs, PostgreSQL/Psycopg validation, redacted failures, pool limits, and session lifecycle; observe failures.
+- [x] Implement `database_url(variable: str = "DATABASE_URL") -> URL`, `create_db_engine(variable: str = "DATABASE_URL") -> Engine`, and `get_session()` without import-time connections. No credential fallback between roles.
+- [x] Add Alembic/Psycopg dependencies, lock and sync; run configuration and parser tests; commit.
 
 ### 2. Schema and migrations
 
 Files: `backend/app/models.py`, `backend/alembic.ini`, `backend/migrations/`, `backend/tests/test_postgres.py`.
 
-- [ ] Write real PostgreSQL tests for constraints, singleton initialization, dataset isolation, published payload guards, and migration roundtrip; observe failures.
-- [ ] Implement seven models and explicit migration DDL. Use `MIGRATION_DATABASE_URL`; never call metadata.create_all in application startup.
-- [ ] Run PostgreSQL tests and `alembic check`; commit.
+- [x] Write real PostgreSQL tests for constraints, singleton initialization, dataset isolation, published payload guards, and migration roundtrip; observe failures.
+- [x] Implement seven models and explicit migration DDL. Use `MIGRATION_DATABASE_URL`; never call metadata.create_all in application startup.
+- [x] Run PostgreSQL tests and `alembic check`; commit.
 
 ### 3. Seed and delivery
 
 Files: `backend/app/seed.py`, `backend/tests/test_postgres.py`, `backend/README.md`, `README.md`, `backend/.env.example`.
 
-- [ ] Write seed tests for deterministic data, repeatability, missing coverage, cancellations, failed runs, and safe rejection of nonempty unrelated databases; observe failures.
-- [ ] Implement `seed_synthetic(engine: Engine) -> None`, CLI `python -m app.seed --synthetic`, with fixed IDs and timestamps and an empty-database requirement. Use `INGESTION_DATABASE_URL`.
-- [ ] Document exact setup/verification commands, privilege/TLS requirements, rollback limits, and deferred publication validation.
+- [x] Write seed tests for deterministic data, repeatability, missing coverage, cancellations, failed runs, and safe rejection of nonempty unrelated databases; observe failures.
+- [x] Implement `seed_synthetic(engine: Engine) -> None`, CLI `python -m app.seed --synthetic`, with fixed IDs and timestamps and an empty-database requirement. Use `INGESTION_DATABASE_URL`.
+- [x] Document exact setup/verification commands, privilege/TLS requirements, rollback limits, and deferred publication validation.
 - [ ] Run full backend suite, Ruff, migration consistency, and review diff; commit. Leave branch isolated, no merge or push.
 
 ## Execution notes
@@ -60,3 +60,9 @@ Files: `backend/app/seed.py`, `backend/tests/test_postgres.py`, `backend/README.
 - Original checkout has uncommitted user edits; they are excluded from this branch.
 - Worktree at `.worktrees/postgresql-foundation`; directory is already ignored.
 - Full source normalization/validation and production publication command are deferred. Database guards enforce structural publication prerequisites, not source completeness.
+- Task 1 complete: `f9d4c76`, configuration/parser tests 12 passed; Ruff passed.
+- Task 2 complete: `f98b7b8`, full backend suite 55 passed on PostgreSQL 17; migration/model consistency and roundtrip passed.
+- Task 3: seed tests observed missing-module failure, then four passed. Full suite subsequently passed (59 tests); final additions and review pending.
+- Ruling: completed runs use `running`, `succeeded`, and `failed`; input hashes use lowercase SHA-256. These specify checked sets/formats left open by the TRD. Future adapters must use these contracts.
+- Ruling: private application schema is fixed at `utscvacant`; campus timezone is fixed at `America/Toronto`. Multi-campus configuration is outside this project.
+- Ruling: use a local Git exclude instead of editing the user's dirty `.gitignore`; the isolated worktree is now ignored without adding user edits to commits.

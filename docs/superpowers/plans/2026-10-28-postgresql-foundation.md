@@ -52,7 +52,7 @@ Files: `backend/app/seed.py`, `backend/tests/test_postgres.py`, `backend/README.
 - [x] Write seed tests for deterministic data, repeatability, missing coverage, cancellations, failed runs, and safe rejection of nonempty unrelated databases; observe failures.
 - [x] Implement `seed_synthetic(engine: Engine) -> None`, CLI `python -m app.seed --synthetic`, with fixed IDs and timestamps and an empty-database requirement. Use `INGESTION_DATABASE_URL`.
 - [x] Document exact setup/verification commands, privilege/TLS requirements, rollback limits, and deferred publication validation.
-- [ ] Run full backend suite, Ruff, migration consistency, and review diff; commit. Leave branch isolated, no merge or push.
+- [x] Run full backend suite, Ruff, migration consistency, and review diff; commit. Leave branch isolated, no merge or push.
 
 ## Execution notes
 
@@ -62,7 +62,11 @@ Files: `backend/app/seed.py`, `backend/tests/test_postgres.py`, `backend/README.
 - Full source normalization/validation and production publication command are deferred. Database guards enforce structural publication prerequisites, not source completeness.
 - Task 1 complete: `f9d4c76`, configuration/parser tests 12 passed; Ruff passed.
 - Task 2 complete: `f98b7b8`, full backend suite 55 passed on PostgreSQL 17; migration/model consistency and roundtrip passed.
-- Task 3: seed tests observed missing-module failure, then four passed. Full suite subsequently passed (59 tests); final additions and review pending.
+- Task 3 complete: `41827b0`, seed tests observed missing-module failure, then four passed. Final full suite: 60 passed on PostgreSQL 17. Ruff passed for the entire backend; changed-module formatting and mypy with explicit namespace roots passed.
 - Ruling: completed runs use `running`, `succeeded`, and `failed`; input hashes use lowercase SHA-256. These specify checked sets/formats left open by the TRD. Future adapters must use these contracts.
 - Ruling: private application schema is fixed at `utscvacant`; campus timezone is fixed at `America/Toronto`. Multi-campus configuration is outside this project.
 - Ruling: use a local Git exclude instead of editing the user's dirty `.gitignore`; the isolated worktree is now ignored without adding user edits to commits.
+- CLI smoke checks passed against a separate disposable development database: `alembic upgrade head`, `alembic current` (`0001`), `alembic check` (no drift), and synthetic seed twice. Tests create and drop their own random databases.
+- Final review: independent read-only review of `848218d..41827b0` found no actionable findings. Reviewer checked migration locks, singleton/pointer guards, seed safety, cleanup scope, configuration, and documentation; it did not independently rerun tests.
+- Review boundary: production validation/publication ordering, controlled retention, SQLite conversion, availability, Supabase browser roles, and verified TLS remain deferred and are documented in `backend/README.md`. These require future implementation or deployment evidence; this branch does not claim them.
+- Preservation checks: parser SHA-256 matches original checkout. No branch changes to parser tests, availability service, or frontend. Original uncommitted edits remain outside this branch.

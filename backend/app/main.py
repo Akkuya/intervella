@@ -2,6 +2,8 @@
 
 import asyncio
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from time import perf_counter
 from typing import Annotated
@@ -35,13 +37,20 @@ from app.schemas import (
 from app.services import availability
 from app.settings import Settings
 
-logger = logging.getLogger("utscvacant.api")
+logger = logging.getLogger("uvicorn.error")
 ReadSession = Annotated[Session, Depends(get_read_session)]
 RoomID = Annotated[int, Path(gt=0, le=2**63 - 1)]
 
 
 def utc_now() -> datetime:
     return datetime.now(UTC)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    # Uvicorn's default access log includes untrusted query values; use safe route records below.
+    logging.getLogger("uvicorn.access").disabled = True
+    yield
 
 
 def get_settings(request: Request) -> Settings:
@@ -65,6 +74,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(
         title="UTSCVacant API",
         version="0.2.0",
+        lifespan=lifespan,
         description=(
             "Public schedule availability. Schedule available does not guarantee a room "
             "is empty, unlocked, or permitted for study. Null next_booking means no later "
@@ -73,17 +83,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         responses={code: {"model": ErrorResponse} for code in (404, 405, 422, 500, 503, 504)},
     )
     app.state.settings = settings
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=list(settings.allowed_origins),
-        allow_methods=["GET"],
-        expose_headers=["X-Request-ID"],
-    )
 
     @app.middleware("http")
-    async def request_context(request: Request, call_next: RequestResponseEndpoint) -> Response:
-        request.state.request_id = str(uuid4())
-        started = perf_counter()
+    async def error_boundary(request: Request, call_next: RequestResponseEndpoint) -> Response:
         try:
             response = await asyncio.wait_for(
                 call_next(request), timeout=settings.request_timeout_seconds
@@ -99,6 +101,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             response = error_response(
                 request, APIError(500, "internal_error", "Unable to complete request.")
             )
+        return response
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=list(settings.allowed_origins),
+        allow_methods=["GET"],
+        expose_headers=["X-Request-ID"],
+    )
+
+    @app.middleware("http")
+    async def request_context(request: Request, call_next: RequestResponseEndpoint) -> Response:
+        request.state.request_id = str(uuid4())
+        started = perf_counter()
+        response = await call_next(request)
         response.headers["X-Request-ID"] = request.state.request_id
         response.headers["Cache-Control"] = "no-cache"
         route = request.scope.get("route")

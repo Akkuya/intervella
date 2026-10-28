@@ -16,7 +16,7 @@ pytestmark = pytest.mark.postgres
 
 def test_real_http_availability(postgres_engine):
     now = datetime.now(UTC)
-    make_schedule(
+    dataset_id = make_schedule(
         postgres_engine,
         fetched_at=now,
         coverage={
@@ -46,19 +46,17 @@ def test_real_http_availability(postgres_engine):
             "127.0.0.1",
             "--port",
             str(port),
-            "--log-level",
-            "warning",
         ],
         env=environment,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
     )
     try:
         with httpx.Client(base_url=f"http://127.0.0.1:{port}", timeout=2) as client:
             deadline = monotonic() + 10
             while True:
                 if process.poll() is not None:
-                    pytest.fail(f"uvicorn exited: {process.communicate()[1].decode()}")
+                    pytest.fail(f"uvicorn exited: {process.communicate()[0].decode()}")
                 try:
                     if client.get("/health/live").status_code == 200:
                         break
@@ -66,7 +64,10 @@ def test_real_http_availability(postgres_engine):
                     pass
                 assert monotonic() < deadline, "uvicorn did not become live"
                 sleep(0.05)
-            response = client.get("/api/v1/availability", params={"start": now.isoformat()})
+            response = client.get(
+                "/api/v1/availability",
+                params={"start": now.isoformat(), "private_probe": "NEVER_LOG_QUERY"},
+            )
             assert response.status_code == 200
             body = response.json()
             assert [room["room_id"] for room in body["data"]] == [1, 2, 6]
@@ -77,9 +78,13 @@ def test_real_http_availability(postgres_engine):
     finally:
         process.terminate()
         try:
-            process.wait(timeout=5)
+            output, _ = process.communicate(timeout=5)
         except subprocess.TimeoutExpired:
             process.kill()
-            process.wait(timeout=5)
-        if process.stderr:
-            process.stderr.close()
+            output, _ = process.communicate(timeout=5)
+    logs = output.decode(errors="replace")
+    assert "NEVER_LOG_QUERY" not in logs
+    assert "start=" not in logs
+    assert f"request_id={response.headers['x-request-id']}" in logs
+    assert "route=/api/v1/availability status=200" in logs
+    assert f"dataset_id={dataset_id}" in logs

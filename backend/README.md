@@ -268,6 +268,10 @@ Every API error has this shape, without reflecting raw input or exception text:
 no-cache`. Database failures return a safe 503; unexpected errors return a safe
 500; request timeout returns 504. Logs use route templates, request ID, duration,
 status, and dataset ID rather than raw query strings or exception details.
+Application lifespan disables Uvicorn's raw access logger. Safe request records use
+Uvicorn's configured server logger, so the documented default startup emits them.
+CORS wraps the error boundary; allowed origins can read structured 500/504 errors,
+and preflight responses also retain server-generated request IDs.
 
 ### API configuration and verification
 

@@ -143,6 +143,16 @@ def test_cors_allowlist_and_openapi():
         }
         assert set(schema["paths"]) == expected
         assert "ErrorResponse" in schema["components"]["schemas"]
+        preflight = client.options(
+            "/health/live",
+            headers={
+                "Origin": "https://example.test",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        assert preflight.status_code == 200
+        assert preflight.headers["x-request-id"]
+        assert preflight.headers["access-control-allow-origin"] == "https://example.test"
 
 
 @pytest.mark.postgres

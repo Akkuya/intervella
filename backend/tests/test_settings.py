@@ -47,17 +47,20 @@ def test_settings_errors_do_not_reflect_environment(monkeypatch):
 
 
 def test_http_errors_and_unexpected_errors_are_safe(caplog):
-    app = create_app(Settings())
+    app = create_app(Settings(allowed_origins=("https://example.test",)))
 
     @app.get("/test-error")
     def broken():
         raise RuntimeError("password=do-not-log")
 
     with TestClient(app) as client:
-        error = client.get("/test-error", headers={"X-Request-ID": "untrusted"})
+        error = client.get(
+            "/test-error", headers={"X-Request-ID": "untrusted", "Origin": "https://example.test"}
+        )
         assert error.status_code == 500
         assert error.json()["error"]["code"] == "internal_error"
         assert error.headers["x-request-id"] != "untrusted"
+        assert error.headers["access-control-allow-origin"] == "https://example.test"
         assert "do-not-log" not in error.text and "do-not-log" not in caplog.text
         missing = client.get("/unknown")
         assert missing.status_code == 404
@@ -68,7 +71,9 @@ def test_http_errors_and_unexpected_errors_are_safe(caplog):
 
 
 def test_request_timeout_uses_error_contract():
-    app = create_app(Settings(request_timeout_seconds=3.01))
+    app = create_app(
+        Settings(request_timeout_seconds=3.01, allowed_origins=("https://example.test",))
+    )
 
     @app.get("/test-slow")
     async def slow():
@@ -76,7 +81,8 @@ def test_request_timeout_uses_error_contract():
         return {"status": "late"}
 
     with TestClient(app) as client:
-        response = client.get("/test-slow")
+        response = client.get("/test-slow", headers={"Origin": "https://example.test"})
         assert response.status_code == 504
         assert response.json()["error"]["code"] == "request_timeout"
         assert response.headers["x-request-id"]
+        assert response.headers["access-control-allow-origin"] == "https://example.test"

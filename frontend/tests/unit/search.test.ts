@@ -42,3 +42,10 @@ test('now bookmarks keep dynamic semantics and custom searches require date/time
     '2026-10-14T13:00:00.000Z',
   )
 })
+
+test('now bookmarks ignore legacy fixed date and offset fields', () => {
+  const location = readLocation('?mode=now&date=2020-01-01&time=01%3A00&offset=-05%3A00', now)
+  assert.equal(location.search.date, '2026-10-14')
+  assert.equal(location.search.time, '08:00')
+  assert.equal(location.search.offset, '')
+})

@@ -13,11 +13,12 @@ export function readLocation(query: string, now = new Date()) {
   const params = new URLSearchParams(query)
   const rawDuration = params.get('duration') ?? '60'
   const duration = Number(rawDuration)
+  const mode = params.get('mode') === 'custom' ? 'custom' : 'now'
   const search: SearchInput = {
-    mode: params.get('mode') === 'custom' ? 'custom' : 'now',
-    date: params.get('date') ?? campusDate(now),
-    time: params.get('time') ?? campusTime(now),
-    offset: params.get('offset') ?? '',
+    mode,
+    date: mode === 'custom' ? (params.get('date') ?? campusDate(now)) : campusDate(now),
+    time: mode === 'custom' ? (params.get('time') ?? campusTime(now)) : campusTime(now),
+    offset: mode === 'custom' ? (params.get('offset') ?? '') : '',
     duration: Number.isInteger(duration) && duration >= 5 && duration <= 240 ? duration : 60,
     building: params.get('building') ?? '',
   }

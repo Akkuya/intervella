@@ -61,3 +61,16 @@ test('aborted requests remain cancelled rather than becoming connection failures
   })
   await assert.rejects(api.status(controller.signal), { name: 'AbortError' })
 })
+
+test('unreachable service has controlled connection error', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () => {
+    throw new TypeError('private network details')
+  })
+  await assert.rejects(
+    api.status(),
+    (error: unknown) =>
+      error instanceof ApiError &&
+      error.code === 'connection_error' &&
+      !error.message.includes('private'),
+  )
+})

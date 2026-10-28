@@ -37,3 +37,9 @@
 
 - Initial repository and both PDFs inspected. No schema migration is needed.
 - Foundation branch is already merged; PR target is `main`, per user instruction.
+- Task 1 complete: `baa85fb`; 94 tests passed, including read-only MVCC transaction behavior and a publication race that also changes stable room metadata. Ruff and mypy passed.
+- Task 2 complete: `e3606e6`; seven endpoints, exact-origin CORS, safe errors, request IDs, timeout, freshness and readiness. Configured-cap regression observed failing and fixed; omitted limit now respects a smaller server cap.
+- Task 3 complete: pinned minimal-permission PostgreSQL 17 CI, default mypy package-root fix, actual uvicorn HTTP integration test, local setup and API documentation. No new dependency, schema migration, parser edit, or seed edit.
+- Full local gate: `uv run pytest --require-postgres` -> 134 passed, 2 upstream TestClient deprecation warnings; `ruff check .`, `ruff format --check .` (29 files), and `mypy .` (28 files) passed. Workflow YAML and mandatory PostgreSQL step checked.
+- Preservation: zero diff from `6f9b034` for parser, schema, seed, migrations, original parser/seed/PostgreSQL tests, and frontend. Existing user container and original dirty checkout remain untouched.
+- Remaining: independent final review, branch push, PR creation, and hosted CI results.

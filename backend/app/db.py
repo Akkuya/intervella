@@ -45,3 +45,20 @@ def get_engine() -> Engine:
 def get_session() -> Iterator[Session]:
     with Session(get_engine()) as session:
         yield session
+
+
+def get_read_session() -> Iterator[Session]:
+    """One read-only MVCC snapshot per request, including room metadata and freshness."""
+    from app.errors import APIError
+
+    try:
+        engine = get_engine()
+    except ValueError:
+        raise APIError(503, "database_unavailable", "Schedule database is unavailable.") from None
+    with (
+        engine.connect().execution_options(
+            isolation_level="REPEATABLE READ", postgresql_readonly=True
+        ) as connection,
+        Session(connection) as session,
+    ):
+        yield session

@@ -10,11 +10,17 @@ UTSC's only bookable study space is the library, and it's small and almost alway
 
 ## How it works
 
-The existing HTML parser handles supplied classroom schedule snapshots. The PostgreSQL foundation stores stable rooms, versioned meeting occurrences, ingestion evidence, and explicit coverage. Live ingestion and availability queries remain unimplemented; source access and completeness still need verification.
+The existing HTML parser handles supplied classroom schedule snapshots. PostgreSQL stores stable rooms, versioned occurrences, ingestion evidence, and explicit coverage. The FastAPI backend now exposes validated, snapshot-consistent availability, room schedules, metadata, and health endpoints. Live ingestion, source authorization, and the frontend remain future work.
 
 A room being "free" here means **no class is scheduled there right now**. It doesn't mean the room is unlocked, unoccupied by a club or exam, or otherwise guaranteed empty — see [Data source and limitations](#data-source-and-limitations).
 
-## Planned features
+## Backend capabilities
+
+- Public REST availability with complete coverage checks, cancellation handling, next scheduled booking, UTC timestamps, and freshness metadata.
+- Building/room metadata, campus-date schedules, public status, liveness, and readiness.
+- PostgreSQL integration tests and GitHub Actions backend checks.
+
+## Planned frontend features
 
 - **Free now**: list of rooms with no class currently running, filterable by building
 - **Free until**: how long a room stays free, so you're not walking into a room 5 minutes before a 300-person lecture
@@ -68,6 +74,7 @@ roomfinder/
 cd backend
 uv sync
 uv run pytest -m 'not postgres'
+uv run uvicorn app.main:app --reload
 ```
 
 ### Frontend
@@ -85,7 +92,7 @@ The frontend proxies `/api` requests to the backend during development (see `vit
 
 ## Status
 
-Early development. See [`docs/scope.md`](docs/scope.md) for the full phased roadmap (MVP → recommendations → 2D map → 3D map → university collaboration).
+Milestone 2 backend implemented. See [API setup and contracts](backend/README.md#milestone-2-public-rest-api) and [`docs/scope.md`](docs/scope.md) for the wider roadmap. The fixed synthetic seed is not current campus data.
 
 ## Disclaimer
 

@@ -92,8 +92,11 @@ test('split controls support keyboard and disable the Toronto spring gap', async
   const hours = page.getByRole('listbox', { name: 'Hour' }).getByRole('option')
   await expect(hours).toHaveCount(12)
   await expect(hours.filter({ hasText: /^2$/ })).toHaveAttribute('aria-disabled', 'true')
+  await page.clock.pauseAt(new Date('2026-10-14T12:00:05Z'))
   await page.keyboard.press('Escape')
   await finishClosing(page)
+  // Nested focus restoration runs on the next animation frame, including with a paused clock.
+  await page.clock.runFor(32)
   await expect(selectTrigger(page, 'Hour')).toBeFocused()
   await page
     .getByRole('radiogroup', { name: 'Minute', exact: true })

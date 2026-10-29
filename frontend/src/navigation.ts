@@ -15,10 +15,14 @@ function subscribe(callback: () => void) {
 
 export const useLocationSearch = () => useSyncExternalStore(subscribe, () => window.location.search)
 
-export function navigate(params: URLSearchParams): boolean {
+export function navigate(params: URLSearchParams, replace = false): boolean {
   const query = params.toString()
   if (window.location.search === (query ? `?${query}` : '')) return false
-  window.history.pushState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}`)
+  window.history[replace ? 'replaceState' : 'pushState'](
+    null,
+    '',
+    `${window.location.pathname}${query ? `?${query}` : ''}`,
+  )
   window.dispatchEvent(new PopStateEvent('popstate'))
   return true
 }

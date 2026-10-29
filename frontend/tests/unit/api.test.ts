@@ -45,6 +45,7 @@ test('malformed success payloads produce controlled errors instead of broken UI'
   t.mock.method(globalThis, 'fetch', async () => new Response('{}'))
   for (const call of [
     () => api.buildings(),
+    () => api.buildingSchedule('SYN-A', '2026-10-14'),
     () => api.status(),
     () => api.room(1),
     () => api.schedule(1, '2026-10-14'),

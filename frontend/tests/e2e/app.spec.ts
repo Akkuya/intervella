@@ -20,7 +20,7 @@ test('search, room schedule, URL navigation and accessible responsive layout', a
   await expect(page).toHaveURL(/building=SYN-A/)
   await page.getByRole('link', { name: 'View SYN-A-101' }).click()
   await expect(page.getByRole('heading', { name: 'SYN-A-101', exact: true })).toBeVisible()
-  await expect(page.getByText('Cancelled', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Cancelled event/ })).toBeVisible()
   await expect(page).toHaveURL(/room=1/)
   await page.goBack()
   await expect(page.getByRole('link', { name: 'View SYN-A-101' })).toBeFocused()

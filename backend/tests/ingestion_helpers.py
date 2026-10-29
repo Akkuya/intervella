@@ -71,3 +71,44 @@ def write_bundle(
         )
     (directory / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     return manifest
+
+
+def write_large_bundle(directory):
+    manifest = write_bundle(directory, booking=False)
+    manifest["buildings"] = []
+    tables = []
+    source_id = 10000
+    for building_index in range(10):
+        code = f"SYN-{building_index}"
+        count = 7 if building_index < 7 else 6
+        rooms = []
+        headers = []
+        for number in range(101, 101 + count):
+            source_id += 1
+            name = f"{code}-{number}"
+            rooms.append({"source_name": name, "room_number": str(number), "source_id": source_id})
+            headers.append(
+                f'<th class="smallth"><a href="?rfilter={source_id}">{name} (20)</a></th>'
+            )
+        manifest["buildings"].append(
+            {"source_name": code, "code": code, "name": f"Synthetic {code}", "rooms": rooms}
+        )
+        rows = []
+        for time, cell in [
+            ("08:00", '<td class="event" rowspan="2">Synthetic event</td>'),
+            ("08:30", ""),
+            ("09:00", "<td>&nbsp;</td>"),
+            ("09:30", "<td>&nbsp;</td>"),
+        ]:
+            rows.append(f'<tr><td class="time">{time}</td>{cell * count}</tr>')
+        tables.append(
+            f'<table class="tableform"><caption>{code}</caption><thead><tr><th></th>'
+            f"{''.join(headers)}</tr></thead><tbody>{''.join(rows)}</tbody></table>"
+        )
+    for path in directory.glob("*.html"):
+        path.write_text(
+            f'<input id="labtime" value="{path.stem}"><div id="contentwrapper">'
+            f"{''.join(tables)}</div>",
+            encoding="utf-8",
+        )
+    (directory / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")

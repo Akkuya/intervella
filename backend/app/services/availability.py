@@ -85,7 +85,19 @@ def complete_coverage(dataset: Dataset, start: datetime, end: datetime):
         .correlate(Room)
         .scalar_subquery()
     )
-    return func.coalesce(covered.op("@>")(func.tstzrange(start, end, "[)")), False)
+    uncertain = (
+        select(col(RoomCoverage.room_id))
+        .where(
+            col(RoomCoverage.dataset_id) == dataset.id,
+            col(RoomCoverage.room_id) == col(Room.id),
+            col(RoomCoverage.completeness) != "complete",
+            col(RoomCoverage.starts_at) < end,
+            col(RoomCoverage.ends_at) > start,
+        )
+        .correlate(Room)
+        .exists()
+    )
+    return func.coalesce(covered.op("@>")(func.tstzrange(start, end, "[)")), False) & ~uncertain
 
 
 def coverage_counts(

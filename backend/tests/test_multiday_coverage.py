@@ -109,3 +109,31 @@ def test_migration_preserves_rows_and_refuses_lossy_downgrade(postgres_engine):
         command.downgrade(migration_config(connection), "0001")
     with postgres_engine.connect() as connection:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0002"
+
+
+def test_conflicting_unknown_window_is_not_overridden_by_complete_window(postgres_engine):
+    dataset = make_schedule(postgres_engine, meetings=[], active=False, published=False)
+    with Session(postgres_engine) as session, session.begin():
+        session.add(
+            RoomCoverage(
+                dataset_id=dataset,
+                room_id=1,
+                starts_at=NOW,
+                ends_at=NOW + timedelta(minutes=30),
+                completeness="unknown",
+            )
+        )
+    from sqlalchemy import text
+
+    with postgres_engine.begin() as connection:
+        connection.execute(
+            text("UPDATE utscvacant.datasets SET published_at=:now WHERE id=:id"),
+            {"now": NOW, "id": dataset},
+        )
+        connection.execute(
+            text("UPDATE utscvacant.dataset_state SET active_dataset_id=:id"), {"id": dataset}
+        )
+    with Session(postgres_engine) as session:
+        result = find_available_rooms(session, start=NOW, end=NOW + timedelta(minutes=30), now=NOW)
+        assert 1 not in [room.room_id for room in result.data]
+        assert room_schedule(session, 1, NOW.date(), NOW).meta.coverage.completeness == "partial"

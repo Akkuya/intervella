@@ -57,3 +57,17 @@ def test_midnight_rowspan_keeps_day_offset():
     room = parse_schedule(html, strict=True)["buildings"][0]["rooms"][0]
     assert room["events"][0]["start_minute"] == 1410
     assert room["events"][0]["end_minute"] == 1470
+
+
+@pytest.mark.parametrize(
+    "before,after",
+    [
+        ('<td rowspan="1">&nbsp;</td>', '<td><img alt="Reserved"></td>'),
+        ('<th id="blank"></th>', "<th>Unknown column</th><th></th>"),
+        ("rfilter=307", "notrfilter=307"),
+        ("rfilter=307", "rfilter=307&rfilter=900"),
+    ],
+)
+def test_strict_grid_rejects_unrecognized_markup_and_ambiguous_locators(before, after):
+    with pytest.raises(ValueError):
+        parse_schedule(SAMPLE_HTML.replace(before, after), strict=True)

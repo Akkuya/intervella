@@ -1,5 +1,6 @@
 import re
 from datetime import datetime, timedelta
+from urllib.parse import parse_qs, urlsplit
 from zoneinfo import ZoneInfo
 
 from bs4 import BeautifulSoup
@@ -154,6 +155,19 @@ def _strict_building(building):
         raise ValueError("Nested or ambiguous timetable")
     headers = head.find_all("th", class_="smallth")
     rooms = [parse_room(header) for header in headers]
+    columns = head.find("tr").find_all(["th", "td"], recursive=False)
+    if (
+        len(columns) != len(headers) + 1
+        or columns[1:] != headers
+        or columns[0].get_text(strip=True)
+    ):
+        raise ValueError("Ambiguous room header columns")
+    for header, room in zip(headers, rooms, strict=True):
+        anchors = header.find_all("a")
+        if len(anchors) != 1 or parse_qs(urlsplit(anchors[0].get("href", "")).query).get(
+            "rfilter"
+        ) != [str(room["id"])]:
+            raise ValueError("Ambiguous source room locator")
     if not rooms or any(room["capacity"] <= 0 or not room["name"] for room in rooms):
         raise ValueError("Invalid room inventory")
     if len({room["name"] for room in rooms}) != len(rooms):
@@ -210,6 +224,8 @@ def _strict_building(building):
             event = "event" in classes
             if ("cancelled" in classes and not event) or (not event and cell.get_text(strip=True)):
                 raise ValueError("Unrecognized booking cell")
+            if not event and cell.find() is not None:
+                raise ValueError("Unrecognized markup in empty cell")
             start, end = minutes[index], minutes[index] + span * 30
             completeness = "unknown" if "blocked" in classes else "complete"
             coverage = room["coverage"]

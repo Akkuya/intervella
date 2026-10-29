@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Literal
+from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError
@@ -19,10 +20,13 @@ MAX_HTML_BYTES = 10 * 1024 * 1024
 
 
 class IngestionError(ValueError):
-    def __init__(self, code: str, *, input_hash: str | None = None):
+    run_id: UUID | None = None
+
+    def __init__(self, code: str, *, input_hash: str | None = None, report: dict | None = None):
         super().__init__(code)
         self.code = code
         self.input_hash = input_hash
+        self.report = report
 
 
 class ManifestModel(BaseModel):

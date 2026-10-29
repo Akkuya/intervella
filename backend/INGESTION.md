@@ -152,3 +152,7 @@ uv run pytest --require-postgres -q
 The existing backend CI already runs these checks with PostgreSQL 17, including all new tests. Tests create/drop only their random `utscvacant_test_*` databases. Fixtures are generated synthetic HTML, including a seven-day, ten-building, 67-room case. Tests cover strict malformed grids, rowspans, midnight, DST, scope, partial/unknown coverage, API responses, hashes, repeats/concurrency, candidate tampering, last-good preservation, publication failure rollback and lossless migration behavior. No authenticated source, live retrieval, public deployment or source permission is verified by these tests.
 
 After a local publication, run FastAPI with the same private database and follow the existing frontend guide. Query within the imported table's actual coverage and the API's existing rolling search window. The API contracts, 36-hour stale threshold and browser data notice are unchanged.
+
+## Operator-generated manifests
+
+The private operator can detect daily/weekly exports, reuse independently approved inventory profiles and generate reviewed manifests before invoking this same pipeline. See [the operator guide](../OPERATOR.md). Daily v1 snapshots may optionally include a safe `file`; omitting it preserves the dated filename behavior. Generated drafts are validated in memory by `load_directory` before saving. No strict grid, coverage or publication rule is relaxed. Profiles are private filesystem metadata, requiring no PostgreSQL migration.

@@ -51,6 +51,7 @@ class SourceBuilding(ManifestModel):
 class Snapshot(ManifestModel):
     date: date
     fetched_at: AwareDatetime
+    file: str | None = Field(default=None, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,100}\.html$")
 
 
 class Window(ManifestModel):
@@ -146,11 +147,17 @@ def _read(path: Path, limit: int) -> bytes:
     return content
 
 
-def load_directory(directory: Path) -> Bundle:
+def load_directory(directory: Path, *, manifest_bytes: bytes | None = None) -> Bundle:
     """No database writes; hashes include exact input bytes and the parser version."""
     digest = hashlib.sha256(PARSER_VERSION.encode())
     try:
-        raw = _read(directory / "manifest.json", 1024 * 1024)
+        raw = (
+            _read(directory / "manifest.json", 1024 * 1024)
+            if manifest_bytes is None
+            else manifest_bytes
+        )
+        if len(raw) > 1024 * 1024:
+            raise IngestionError("input_too_large")
         digest.update(raw)
         payload = json.loads(raw)
         if not isinstance(payload, dict):
@@ -166,16 +173,18 @@ def load_directory(directory: Path) -> Bundle:
         snapshots = {snapshot.date: snapshot for snapshot in manifest.snapshots}
         if len(snapshots) != 7 or set(snapshots) != set(dates):
             raise IngestionError("unexpected_dates")
-        expected = {f"{day}.html" for day in dates}
-        if {path.name for path in directory.glob("*.html")} != expected:
+        names = {day: snapshots[day].file or f"{day}.html" for day in dates}
+        expected = set(names.values())
+        if len(expected) != 7 or {path.name for path in directory.glob("*.html")} != expected:
             raise IngestionError("unexpected_files")
         files = {}
         for day in dates:
-            content = _read(directory / f"{day}.html", MAX_HTML_BYTES)
+            content = _read(directory / names[day], MAX_HTML_BYTES)
             files[day] = content
             digest.update(day.isoformat().encode())
             digest.update(hashlib.sha256(content).digest())
-        return _normalize(manifest, dates, files, digest.hexdigest())
+        provenance = {day: {"file": snapshots[day].file} for day in dates if snapshots[day].file}
+        return _normalize(manifest, dates, files, digest.hexdigest(), provenance=provenance)
     except IngestionError as exc:
         exc.input_hash = digest.hexdigest()
         raise

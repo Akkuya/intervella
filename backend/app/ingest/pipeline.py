@@ -348,7 +348,11 @@ def _stage(engine: Engine, bundle: Bundle, run_id: UUID, reason: str | None) -> 
 
 
 def publish_dataset(
-    engine: Engine, dataset_id: str | UUID, *, review_reason: str | None = None
+    engine: Engine,
+    dataset_id: str | UUID,
+    *,
+    review_reason: str | None = None,
+    expected_baseline: str | None = None,
 ) -> dict:
     run_id = None
     input_hash = hashlib.sha256(b"unknown-candidate").hexdigest()
@@ -357,6 +361,10 @@ def publish_dataset(
         dataset_id = UUID(str(dataset_id))
         with Session(engine) as session, session.begin():
             state = _lock(session)
+            # None preserves CLI behavior; an empty string confirms no active dataset.
+            current_id = str(state.active_dataset_id) if state.active_dataset_id else ""
+            if expected_baseline is not None and expected_baseline != current_id:
+                raise IngestionError("publication_baseline_changed")
             dataset = session.execute(
                 select(Dataset).where(col(Dataset.id) == dataset_id).with_for_update()
             ).scalar_one_or_none()
@@ -372,7 +380,10 @@ def publish_dataset(
             ).scalar_one()
             input_hash = run.input_hash
             counts = run.counts
-            if run.status != "succeeded" or counts.get("parser_version") != PARSER_VERSION:
+            if run.status != "succeeded" or counts.get("parser_version") not in {
+                "local-grid-v1",
+                PARSER_VERSION,
+            }:
                 raise IngestionError("candidate_not_validated")
             if counts.get("candidate_digest") != _digest(session, dataset.id):
                 raise IngestionError("candidate_changed")

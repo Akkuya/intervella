@@ -19,9 +19,16 @@ export default defineConfig({
     },
     { name: 'mobile', use: { ...devices['Pixel 7'] } },
   ],
-  webServer: {
-    command: 'npm run preview -- --host 127.0.0.1 --port 4173 --strictPort',
-    url: 'http://127.0.0.1:4173',
-    reuseExistingServer: !process.env.CI,
-  },
+  webServer: [
+    {
+      command: 'npm run preview -- --host 127.0.0.1 --port 4173 --strictPort',
+      url: 'http://127.0.0.1:4173',
+      reuseExistingServer: !process.env.CI,
+    },
+    {
+      command: 'npm run preview:operator -- --host 127.0.0.1 --port 4174 --strictPort',
+      url: 'http://127.0.0.1:4174/operator.html',
+      reuseExistingServer: !process.env.CI,
+    },
+  ],
 })

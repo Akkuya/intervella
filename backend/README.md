@@ -339,3 +339,43 @@ Each response uses one captured published dataset and the existing read-only rep
 At most 1,000 candidate rooms and 20,000 coverage/meeting records each are processed. Exceeding a bound fails with `search_too_large`, never silently sorts a truncated candidate set. Coverage, meetings and next bookings use batch queries. No migration, ingestion, parser, seed or dataset publication change is involved.
 
 Saved-ID batches always return all existing requested rooms (at most 100), regardless of a smaller MAX_AVAILABILITY_LIMIT for general searches. A custom smaller `limit` is rejected for ID batches, preventing inaccessible truncated favourites. Missing IDs remain explicit.
+## Weekly timetable imports (manifest v2)
+
+Weekly import uses the same `python -m app.ingest import DIRECTORY --dry-run`, `import DIRECTORY`, `status`, and `publish DATASET_ID` commands as daily import. Daily manifest v1 remains supported. The source file must be a complete HTML document with a head, body, and one `contentwrapper`, containing exactly the reviewed room inventory. Fragments and partial inventories are rejected. The supplied 25-table fragment is inspection-only and is not a campus inventory.
+
+Create a private directory outside the repository with the full weekly file(s) and `manifest.json`. Declare each file's actual capture time; upload/import time never replaces it. A target window crossing Sunday needs both adjacent exports. Every file is validated, but only the selected seven target dates are staged. Year comes from explicit Sunday `week_start` and is cross-checked against every caption.
+
+Example manifest (synthetic inventory only; replace it with the complete approved inventory):
+
+```json
+{
+  "version": 2,
+  "source_format": "weekly",
+  "inventory_scope": "complete",
+  "inventory_review_reason": "inventory-reviewed",
+  "start_date": "2026-10-25",
+  "window": {"start": "08:00", "end": "10:00"},
+  "weeks": [
+    {"week_start": "2026-10-25", "file": "week-2026-10-25.html", "fetched_at": "2026-10-25T11:00:00Z"}
+  ],
+  "buildings": [{
+    "source_name": "Synthetic A", "code": "SYN-A", "name": "Synthetic A",
+    "rooms": [{"source_name": "SYN-A-101", "room_number": "101", "capacity": 20}]
+  }]
+}
+```
+
+Weekly room labels must match manifest `source_name` exactly and capacities must match the explicitly approved values. Database room identity remains `(building code, room number)`. A missing source ID stays null; do not put database IDs into `source_id`. Duplicate aliases/identities and ambiguous or missing files/dates are rejected. Each room may declare its own `window` to preserve a shorter timetable; otherwise the common window must match exactly. Blank cells establish coverage only after complete structural grid validation. Blocked cells remain unknown. Unresolved DST gaps/folds are rejected rather than guessed.
+
+```powershell
+Set-Location "$repoPath/backend"
+# Configure INGESTION_DATABASE_URL privately in this process; never use a frontend variable.
+$privateSnapshots = 'C:\Private\UTSCVacant\weekly-import'
+uv run python -m app.ingest import $privateSnapshots --dry-run
+uv run python -m app.ingest import $privateSnapshots
+uv run python -m app.ingest status
+# Only after reviewing the staged identifier and findings:
+uv run python -m app.ingest publish 'PASTE-STAGED-DATASET-UUID'
+```
+
+Anomalies still require `--review-reason reviewed-change-id` when staging/publishing; inventory acknowledgment does not bypass anomaly review. Existing atomic publication, per-day capture-age regression protection, prior dataset retention, and historical room access remain in force. No raw HTML, event descriptions, private manifests, or credentials belong in Git. This workflow performs no intranet fetching and does not grant republication authorization.

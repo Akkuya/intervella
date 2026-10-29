@@ -15,7 +15,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationErro
 from app.ingest.parser import parse_schedule
 
 ZONE = ZoneInfo("America/Toronto")
-PARSER_VERSION = "local-grid-v1"
+PARSER_VERSION = "local-grid-v2"
 MAX_HTML_BYTES = 10 * 1024 * 1024
 
 
@@ -36,7 +36,9 @@ class ManifestModel(BaseModel):
 class SourceRoom(ManifestModel):
     source_name: str = Field(min_length=1, max_length=128)
     room_number: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$")
-    source_id: int = Field(gt=0, strict=True)
+    source_id: int | None = Field(default=None, gt=0, strict=True)
+    capacity: int | None = Field(default=None, gt=0, strict=True)
+    window: "Window | None" = None
 
 
 class SourceBuilding(ManifestModel):
@@ -57,7 +59,8 @@ class Window(ManifestModel):
 
 
 class Manifest(ManifestModel):
-    version: Literal[1]
+    version: Literal[1, 2]
+    source_format: Literal["daily", "weekly"] = "daily"
     start_date: date
     window: Window
     snapshots: list[Snapshot] = Field(min_length=7, max_length=7)
@@ -69,7 +72,7 @@ class RoomRecord:
     building_code: str
     building_name: str
     room_number: str
-    source_id: int
+    source_id: int | None
     capacity: int
 
     @property
@@ -103,10 +106,12 @@ class Bundle:
     source_fetched_at: datetime
     input_hash: str
     sources: tuple[dict, ...]
+    source_format: str = "daily"
 
     def report(self) -> dict:
         unknown = {item.room_key for item in self.coverage if item.completeness != "complete"}
         return {
+            "source_format": self.source_format,
             "dates": [day.isoformat() for day in self.dates],
             "rooms": len(self.rooms),
             "buildings": len({room.building_code for room in self.rooms}),
@@ -147,7 +152,16 @@ def load_directory(directory: Path) -> Bundle:
     try:
         raw = _read(directory / "manifest.json", 1024 * 1024)
         digest.update(raw)
+        payload = json.loads(raw)
+        if not isinstance(payload, dict):
+            raise IngestionError("invalid_local_input")
+        if payload.get("source_format") == "weekly":
+            from app.ingest.weekly_load import load_weekly
+
+            return load_weekly(directory, raw, digest)
         manifest = Manifest.model_validate_json(raw)
+        if manifest.version != 1 or manifest.source_format != "daily":
+            raise IngestionError("unsupported_manifest")
         dates = tuple(manifest.start_date + timedelta(days=i) for i in range(7))
         snapshots = {snapshot.date: snapshot for snapshot in manifest.snapshots}
         if len(snapshots) != 7 or set(snapshots) != set(dates):
@@ -170,7 +184,12 @@ def load_directory(directory: Path) -> Bundle:
 
 
 def _normalize(
-    manifest: Manifest, dates: tuple[date, ...], files: dict[date, bytes], input_hash: str
+    manifest: Manifest,
+    dates: tuple[date, ...],
+    files: dict[date, bytes],
+    input_hash: str,
+    parsed_days: dict | None = None,
+    provenance: dict | None = None,
 ) -> Bundle:
     buildings = {building.source_name: building for building in manifest.buildings}
     aliases = {
@@ -179,11 +198,14 @@ def _normalize(
         for room in building.rooms
     }
     room_keys = [(building.code, room.room_number) for building, room in aliases.values()]
-    source_ids = [room.source_id for building in manifest.buildings for room in building.rooms]
+    all_rooms = [room for building in manifest.buildings for room in building.rooms]
+    source_ids = [room.source_id for room in all_rooms if room.source_id is not None]
+    if manifest.source_format == "daily" and any(room.source_id is None for room in all_rooms):
+        raise IngestionError("missing_source_identity")
     if (
         len(buildings) != len(manifest.buildings)
         or len({building.code for building in manifest.buildings}) != len(buildings)
-        or len(aliases) != len(source_ids)
+        or len(aliases) != len(all_rooms)
         or len(set(room_keys)) != len(room_keys)
         or len(set(source_ids)) != len(source_ids)
     ):
@@ -199,24 +221,39 @@ def _normalize(
     meetings = []
     sources = []
     for day in dates:
-        parsed = parse_schedule(files[day].decode("utf-8-sig"), strict=True)
+        parsed = (
+            parsed_days[day]
+            if parsed_days is not None
+            else parse_schedule(files[day].decode("utf-8-sig"), strict=True)
+        )
         if parsed["date"] != day.isoformat():
             raise IngestionError("unexpected_page_date")
         if {building["name"] for building in parsed["buildings"]} != set(buildings):
             raise IngestionError("missing_buildings")
         seen = set()
         for raw_building in parsed["buildings"]:
-            boundaries = raw_building["row_minutes"]
-            if boundaries[0] != start or boundaries[-1] != end:
-                raise IngestionError("incomplete_timetable_window")
-            for minute in boundaries:
-                local_instant(day, minute)
             for raw_room in raw_building["rooms"]:
                 alias = (raw_building["name"], raw_room["name"])
                 if alias not in aliases:
                     raise IngestionError("unexpected_room")
                 building, source_room = aliases[alias]
-                if raw_room["id"] != source_room.source_id:
+                bounds = raw_room.get("row_minutes", raw_building.get("row_minutes"))
+                expected_start, expected_end = start, end
+                if source_room.window:
+                    expected_start = _minute(source_room.window.start)
+                    expected_end = _minute(source_room.window.end)
+                    if expected_end <= expected_start:
+                        expected_end += 1440
+                if bounds[0] != expected_start or bounds[-1] != expected_end:
+                    raise IngestionError("incomplete_timetable_window")
+                for minute in bounds:
+                    local_instant(day, minute)
+                if (
+                    source_room.capacity is not None
+                    and raw_room["capacity"] != source_room.capacity
+                ):
+                    raise IngestionError("source_capacity_changed")
+                if manifest.source_format == "daily" and raw_room["id"] != source_room.source_id:
                     raise IngestionError("source_identity_changed")
                 room = RoomRecord(
                     building.code,
@@ -261,6 +298,7 @@ def _normalize(
     for day in dates:
         sources.append(
             {
+                **(provenance.get(day, {}) if provenance else {}),
                 "date": str(day),
                 "sha256": hashlib.sha256(files[day]).hexdigest(),
                 "fetched_at": captures[day].isoformat(),
@@ -274,6 +312,7 @@ def _normalize(
         min(captures.values()),
         input_hash,
         tuple(sources),
+        manifest.source_format,
     )
 
 

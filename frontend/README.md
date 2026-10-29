@@ -146,3 +146,5 @@ Start/end time popups have a 1–12 hour selector, twelve five-minute minute cho
 End shortcuts add elapsed time and carry the Toronto date/offset across midnight/DST. For a live start with seconds or off-grid minutes, shortcuts suggest the next five-minute endpoint and use `~` to mark the approximate duration. The API still enforces 5–240 elapsed minutes and all coverage rules.
 
 `custom-controls.spec.ts` captures opened select, date, and time popups in both themes on desktop and mobile. Screenshots use disabled animations to capture the settled popup; exit animations are finished without advancing the controlled search clock. Automated accessibility checks do not replace manual assistive-technology testing.
+
+The separate private operator build is `npm run build:operator`. Build both applications before Playwright: it starts the student preview on 4173 and private UI preview on 4174, with synthetic intercepted operator responses. The real authenticated operator service serves only `dist-operator` on loopback 8765; see `../OPERATOR.md`. The normal student build remains separate.

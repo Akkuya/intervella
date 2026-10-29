@@ -18,7 +18,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     commands = parser.add_subparsers(dest="command", required=True)
     load = commands.add_parser(
-        "import", help="Validate and stage exactly seven dated HTML snapshots."
+        "import", help="Validate and stage a seven-day target from daily or weekly local exports."
     )
     load.add_argument("directory", type=Path)
     load.add_argument(

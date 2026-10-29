@@ -1,3 +1,4 @@
+import { choose, selected, setTime, setDate, selectTrigger } from './control-helpers.ts'
 import { test, expect } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 import { available, mockAPI, NOW, schedule, status } from './fixtures.ts'
@@ -70,12 +71,17 @@ test('unknown room shows safe not-found state without fabricated details', async
   await expect(page.getByRole('heading', { name: 'SYN-A-101', exact: true })).not.toBeVisible()
 })
 
-test('switching from now to custom uses the current Toronto time', async ({ page }) => {
+test('switching from now to custom initializes the nearest five-minute Toronto time', async ({
+  page,
+}) => {
   await page.goto('/')
   await expect(page.getByRole('link', { name: 'View SYN-A-101' })).toBeVisible()
   await page.clock.fastForward(120_000)
   await page.getByLabel('Choose a time').check()
-  await expect(page.getByLabel('Start time')).toHaveValue('08:02')
+  await expect(page.getByRole('button', { name: /^Start time: / }).locator('time')).toHaveAttribute(
+    'datetime',
+    '08:00',
+  )
 })
 
 test('custom query restores URL and sends Toronto instant, duration and building', async ({
@@ -83,21 +89,24 @@ test('custom query restores URL and sends Toronto instant, duration and building
 }) => {
   await page.goto('/?mode=custom&date=2026-10-14&time=10%3A30&duration=90&building=SYN-A')
   await expect(page.getByLabel('Choose a time')).toBeChecked()
-  await expect(page.getByLabel('Start time')).toHaveValue('10:30')
-  await expect(page.getByRole('combobox', { name: 'Duration', exact: true })).toHaveValue('90')
+  await expect(page.getByRole('button', { name: /^Start time: / }).locator('time')).toHaveAttribute(
+    'datetime',
+    '10:30',
+  )
+  await selected(page, 'Duration', '90')
   const request = page.waitForRequest(
     (item) =>
       item.url().includes('/room-search') &&
       new URL(item.url()).searchParams.get('duration_minutes') === '30',
   )
-  await page.getByRole('combobox', { name: 'Duration', exact: true }).selectOption('30')
+  await choose(page, 'Duration', '30')
   await page.getByRole('button', { name: 'Find rooms' }).click()
   const params = new URL((await request).url()).searchParams
   expect(params.get('start')).toBe('2026-10-14T14:30:00.000Z')
   expect(params.get('building')).toBe('SYN-A')
   await expect(page).toHaveURL(/duration=30/)
   await page.reload()
-  await expect(page.getByRole('combobox', { name: 'Duration', exact: true })).toHaveValue('30')
+  await selected(page, 'Duration', '30')
 })
 
 test('loading is distinct from no matching rooms', async ({ page }) => {
@@ -190,10 +199,8 @@ test('superseded responses cannot replace a newer search', async ({ page }) => {
   })
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Checking the schedule…' })).toBeVisible()
-  await expect(
-    page.getByRole('combobox', { name: 'Building', exact: true }).locator('option[value="SYN-B"]'),
-  ).toBeAttached()
-  await page.getByRole('combobox', { name: 'Building', exact: true }).selectOption('SYN-B')
+  await expect(selectTrigger(page, 'Building')).toBeAttached()
+  await choose(page, 'Building', 'SYN-B')
   await page.getByRole('button', { name: 'Find rooms' }).click()
   await expect(page.getByRole('link', { name: 'View SYN-B-205' })).toBeVisible()
   release()
@@ -205,15 +212,17 @@ test('DST gap is rejected and repeated time requires explicit offset', async ({ 
   await page.goto('/')
   await expect(page.getByRole('link', { name: 'View SYN-A-101' })).toBeVisible()
   await page.getByLabel('Choose a time').check()
-  await page.getByLabel('Date', { exact: true }).fill('2026-03-08')
-  await page.getByLabel('Start time').fill('02:30')
-  await page.getByRole('button', { name: 'Find rooms' }).click()
+  await setDate(page, 'Date', '2026-03-08')
+  await page.getByRole('button', { name: /^Start time: / }).click()
+  await page.getByLabel('Type a time').fill('02:30')
+  await page.getByRole('button', { name: 'Use time', exact: true }).click()
   await expect(page.getByText('This time does not exist', { exact: false })).toBeVisible()
-  await page.getByLabel('Date', { exact: true }).fill('2026-11-01')
-  await page.getByLabel('Start time').fill('01:30')
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await setDate(page, 'Date', '2026-11-01')
+  await setTime(page, 'Start time', '01:30')
   await page.getByRole('button', { name: 'Find rooms' }).click()
   await expect(page.getByText('This time occurs twice', { exact: false })).toBeVisible()
-  await page.getByLabel('Time occurrence').selectOption('-05:00')
+  await choose(page, 'Time occurrence', '-05:00')
   const request = page.waitForRequest(
     (item) =>
       item.url().includes('/room-search') &&

@@ -1,3 +1,4 @@
+import { Select } from './Controls.tsx'
 import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from './api.ts'
@@ -58,11 +59,12 @@ export function BuildingSchedules({
       <div className="building-controls">
         <label>
           Building
-          <select
+          <Select
+            label="Building"
             value={code}
-            onChange={(event) => {
+            onChange={(selection) => {
               const next = new URLSearchParams(query)
-              next.set('building', event.target.value)
+              next.set('building', selection)
               navigate(next)
             }}
           >
@@ -75,7 +77,7 @@ export function BuildingSchedules({
                 {building.code} · {building.name}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <CalendarDate
           date={date}

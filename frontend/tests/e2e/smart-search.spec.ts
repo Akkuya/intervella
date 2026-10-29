@@ -1,3 +1,4 @@
+import { choose, setTime } from './control-helpers.ts'
 import { test, expect } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 import { mockAPI, available, meta } from './fixtures.ts'
@@ -16,7 +17,9 @@ test('expired until searches leave room and building calendar navigation usable'
   await page.getByRole('link', { name: 'Building schedules', exact: true }).click()
   await expect(page.getByRole('region', { name: 'Day calendar' })).toBeVisible()
   await page.getByRole('button', { name: 'Next day', exact: true }).click()
-  await expect(page.getByLabel('Schedule date')).toHaveValue('2026-10-15')
+  await expect(
+    page.getByRole('button', { name: /^Schedule date: / }).locator('time'),
+  ).toHaveAttribute('datetime', '2026-10-15')
 })
 
 test('saved now results refresh on visibility return after a booking boundary', async ({
@@ -65,10 +68,10 @@ test('until, normalized name and sorting are shared in URLs and checked by the A
   page,
 }, testInfo) => {
   await page.goto('/?mode=custom&date=2026-10-14&time=08%3A00')
-  await page.getByRole('combobox', { name: 'Search length', exact: true }).selectOption('until')
-  await page.getByLabel('Available until', { exact: true }).fill('09:00')
+  await choose(page, 'Search length', 'until')
+  await setTime(page, 'Available until', '09:00')
   await page.getByRole('searchbox', { name: 'Room name' }).fill('SYNA101')
-  await page.getByRole('combobox', { name: 'Sort rooms' }).selectOption('duration')
+  await choose(page, 'Sort rooms', 'duration')
   const request = page.waitForRequest(
     (item) => item.url().includes('/room-search') && new URL(item.url()).searchParams.has('end'),
   )
@@ -81,7 +84,9 @@ test('until, normalized name and sorting are shared in URLs and checked by the A
   expect(params.get('sort')).toBe('duration')
   await expect(page).toHaveURL(/end_time=09%3A00/)
   await page.reload()
-  await expect(page.getByLabel('Available until', { exact: true })).toHaveValue('09:00')
+  await expect(
+    page.getByRole('button', { name: /^Available until: / }).locator('time'),
+  ).toHaveAttribute('datetime', '09:00')
   await expect(page.getByRole('searchbox', { name: 'Room name' })).toHaveValue('SYNA101')
   await expect(page.getByRole('article', { name: 'SYN-A-101' })).toContainText(
     'Available until9:00 AM',
@@ -228,11 +233,11 @@ test('until end time rejects DST gaps and demands an explicit repeated occurrenc
   page,
 }) => {
   await page.goto('/?mode=custom&date=2026-11-01&time=01%3A00&offset=-04%3A00')
-  await page.getByRole('combobox', { name: 'Search length' }).selectOption('until')
-  await page.getByLabel('Available until', { exact: true }).fill('01:30')
+  await choose(page, 'Search length', 'until')
+  await setTime(page, 'Available until', '01:30')
   await page.getByRole('button', { name: 'Find rooms' }).click()
   await expect(page.getByText('This time occurs twice', { exact: false })).toBeVisible()
-  await page.getByLabel('End time occurrence').selectOption('-05:00')
+  await choose(page, 'End time occurrence', '-05:00')
   const request = page.waitForRequest(
     (item) =>
       item.url().includes('/room-search') &&

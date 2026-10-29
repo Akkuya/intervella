@@ -687,12 +687,6 @@
   font-size: 12px;
   color: var(--muted);
 }
-.appearance-control select {
-  width: 108px;
-  min-height: 38px;
-  padding: 6px 34px 6px 10px;
-  font-size: 13px;
-}
 .freshness-line {
   display: flex;
   align-items: center;

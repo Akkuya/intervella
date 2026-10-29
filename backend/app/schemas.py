@@ -3,7 +3,14 @@ from datetime import UTC, datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import AfterValidator, AwareDatetime, BaseModel, Field, field_validator
+from pydantic import (
+    AfterValidator,
+    AwareDatetime,
+    BaseModel,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 UTCDateTime = Annotated[AwareDatetime, AfterValidator(lambda value: value.astimezone(UTC))]
 
@@ -33,6 +40,39 @@ class ScheduleParams(BaseModel):
     @classmethod
     def iso_date(cls, value):
         return dt.date.fromisoformat(value) if isinstance(value, str) else value
+
+
+class RoomSearchParams(BaseModel):
+    start: UTCDateTime
+    building: str | None = Field(default=None, max_length=32)
+    duration_minutes: int | None = Field(default=None, ge=5, le=240)
+    end: UTCDateTime | None = None
+    room_name: str | None = Field(default=None, max_length=64)
+    sort: Literal["building", "room", "duration"] = "building"
+    include_next: bool = False
+    room_ids: list[Annotated[int, Field(gt=0, le=2**63 - 1)]] = Field(
+        default_factory=list, max_length=100
+    )
+    limit: int = Field(default=100, ge=1, le=100)
+
+    @field_validator("start", "end", mode="before")
+    @classmethod
+    def end_timestamp(cls, value):
+        return AvailabilityParams.iso_timestamp(value) if value is not None else None
+
+    @model_validator(mode="after")
+    def interval(self):
+        if self.room_ids and (self.building or self.room_name):
+            raise ValueError("Saved room batches cannot also filter inventory")
+        if self.end is not None and self.duration_minutes is not None:
+            raise ValueError("Choose duration or end, not both")
+        try:
+            end = self.end or self.start + dt.timedelta(minutes=self.duration_minutes or 60)
+            if not dt.timedelta(minutes=5) <= end - self.start <= dt.timedelta(minutes=240):
+                raise ValueError("Choose a 5 to 240 minute window")
+        except OverflowError:
+            raise ValueError("Choose a supported timestamp") from None
+        return self
 
 
 class TimeWindow(BaseModel):
@@ -95,6 +135,24 @@ class RoomInfo(BaseModel):
 
 class RoomResponse(BaseModel):
     data: RoomInfo
+
+
+class SearchRoom(RoomInfo):
+    state: Literal["available", "scheduled", "unknown", "inactive"]
+    available_until: UTCDateTime | None = None
+    next_available_start: UTCDateTime | None = None
+    next_booking: UTCDateTime | None = None
+
+
+class RoomSearchMetadata(AvailabilityMetadata):
+    missing_room_ids: list[int] = Field(default_factory=list)
+    lookahead_end: UTCDateTime
+
+
+class RoomSearchResponse(BaseModel):
+    query: TimeWindow
+    data: list[SearchRoom]
+    meta: RoomSearchMetadata
 
 
 class CoverageInfo(BaseModel):

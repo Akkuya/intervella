@@ -325,3 +325,15 @@ this milestone.
 One captured dataset and the existing read-only repeatable-read transaction cover each response. Building payloads allow at most 100 rooms and 5,000 coverage/meeting records each; larger requests fail explicitly. Queries are batched, not one per room. Dates must intersect the published period. Source bounds determine the display window; absent coverage is unknown.
 
 Strict ingestion still stores no descriptions. `public_label` is an optional typed path reserved for a future explicitly approved public source. It is always null for current stored occurrences. No authorization to republish private labels is assumed.
+
+## Room search (Milestone 5C)
+
+`GET /api/v1/room-search` keeps `/availability` unchanged. Required `start` is an ISO timestamp with explicit offset/Z; supply either `duration_minutes` (5–240, default 60) or `end` (same interval limits), never both. The rolling start window remains five minutes ago to thirty days ahead and the requested interval must lie in the published period.
+
+Optional filters: `building` (recognized code), `room_name` (up to 64 characters, normalized alphanumeric substring of building code plus room number; AA112 and AA-112 match alike). `sort=building|room|duration` orders by building/room, room number/building, or descending confirmed contiguous duration. Stable room IDs break ties. `limit` defaults to 100 and respects MAX_AVAILABILITY_LIMIT. `include_next=true` includes scheduled/unknown rooms alongside available ones; otherwise only confirmed matches are returned.
+
+For local favourites, repeated `room_ids=1&room_ids=2` accepts up to 100 positive IDs and returns each existing listing's available/scheduled/unknown/inactive state, plus missing IDs. Do not combine IDs with building/name filters. Inactive listings never claim availability. Empty-ID batches should not be sent: omission means normal active-inventory search.
+
+Each response uses one captured published dataset and the existing read-only repeatable-read snapshot. Free windows are complete coverage minus uncertain windows and scheduled meetings; cancellation does not block. `available_until` proves contiguous availability for the entire request, capped at `meta.lookahead_end` (24 elapsed hours after start). `next_available_start` is the first known free window fitting the requested elapsed duration within that horizon, possibly after unknown gaps; it is not proof of earliest possible availability. Null means no suitable time confirmed, not impossibility. `next_booking` is the next known scheduled start at/after the requested end in this dataset. Freshness, unknown count and truncation remain explicit.
+
+At most 1,000 candidate rooms and 20,000 coverage/meeting records each are processed. Exceeding a bound fails with `search_too_large`, never silently sorts a truncated candidate set. Coverage, meetings and next bookings use batch queries. No migration, ingestion, parser, seed or dataset publication change is involved.

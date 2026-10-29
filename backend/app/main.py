@@ -24,6 +24,7 @@ from app.errors import APIError
 from app.schemas import (
     AvailabilityParams,
     AvailabilityResponse,
+    BuildingScheduleResponse,
     BuildingsResponse,
     ErrorDetail,
     ErrorResponse,
@@ -223,6 +224,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     ) -> StatusResponse:
         result = availability.dataset_status(session, now, config.freshness_max_age_hours)
         request.state.dataset_id = str(result.dataset_id)
+        return result
+
+    @app.get("/api/v1/buildings/{code}/schedule", response_model=BuildingScheduleResponse)
+    def building_day(
+        request: Request,
+        code: Annotated[str, Path(min_length=1, max_length=32)],
+        query: Annotated[ScheduleParams, Query()],
+        session: ReadSession,
+        now: Annotated[datetime, Depends(utc_now)],
+        config: Annotated[Settings, Depends(get_settings)],
+    ) -> BuildingScheduleResponse:
+        from app.services.calendar import building_schedule
+
+        result = building_schedule(session, code, query.date, now, config.freshness_max_age_hours)
+        request.state.dataset_id = str(result.meta.dataset_id)
         return result
 
     @app.get("/health/ready", response_model=ReadyResponse)

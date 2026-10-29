@@ -317,3 +317,11 @@ Integration tests cannot silently skip because CI uses `--require-postgres`.
 Two current upstream TestClient deprecations (HTTPX and AnyIO) may be reported;
 they do not affect API requests or test results. No new dependency is added for
 this milestone.
+
+## Calendar API (Milestone 5B)
+
+`GET /api/v1/buildings/{code}/schedule?date=YYYY-MM-DD` returns active rooms, one shared display window, meetings, exact coverage windows and server-derived available/scheduled/unknown periods. The existing room schedule response gains the same additive `calendar`. Complete windows are combined, uncertain windows subtracted, and scheduled meetings block half-open intervals; cancelled meetings do not. Historical inactive room details remain readable without available claims.
+
+One captured dataset and the existing read-only repeatable-read transaction cover each response. Building payloads allow at most 100 rooms and 5,000 coverage/meeting records each; larger requests fail explicitly. Queries are batched, not one per room. Dates must intersect the published period. Source bounds determine the display window; absent coverage is unknown.
+
+Strict ingestion still stores no descriptions. `public_label` is an optional typed path reserved for a future explicitly approved public source. It is always null for current stored occurrences. No authorization to republish private labels is assumed.

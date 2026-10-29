@@ -15,6 +15,7 @@ from app.schemas import (
     BuildingInfo,
     BuildingsResponse,
     CoverageInfo,
+    CoverageWindow,
     FreshnessMetadata,
     MeetingInfo,
     Period,
@@ -320,11 +321,25 @@ def room_schedule(
         )
         .order_by(col(MeetingOccurrence.starts_at), col(MeetingOccurrence.id))
     ).mappings()
+    from app.services.calendar import day_calendar
+
+    meetings = [MeetingInfo.model_validate(row) for row in rows]
+    calendar = day_calendar(
+        start,
+        end,
+        [CoverageWindow.model_validate(item, from_attributes=True) for item in windows],
+        meetings,
+    )
+    if not room.active:
+        for segment in calendar.periods:
+            if segment.state == "available":
+                segment.state = "unknown"
     return ScheduleResponse(
         room=room,
         date=day,
         query=TimeWindow(start=start, end=end),
-        data=[MeetingInfo.model_validate(row) for row in rows],
+        data=meetings,
+        calendar=calendar,
         meta=ScheduleMetadata(
             **freshness(dataset, now, max_age_hours).model_dump(),
             coverage=info,

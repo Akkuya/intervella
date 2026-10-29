@@ -73,3 +73,68 @@ def test_midnight_rowspan_keeps_day_offset():
 def test_strict_grid_rejects_unrecognized_markup_and_ambiguous_locators(before, after):
     with pytest.raises(ValueError):
         parse_schedule(SAMPLE_HTML.replace(before, after), strict=True)
+
+
+@pytest.mark.parametrize("formatting", ["rightcell", "lastcell", "rightcell lastcell"])
+def test_formatting_classes_preserve_empty_and_blocked_cell_semantics(formatting):
+    html = SAMPLE_HTML.replace(
+        '<td rowspan="1">', f'<td class="{formatting}" rowspan="1">'
+    ).replace('class="blocked"', f'class="blocked {formatting}"')
+    assert (
+        parse_schedule(html, strict=True)["buildings"]
+        == parse_schedule(SAMPLE_HTML, strict=True)["buildings"]
+    )
+
+
+@pytest.mark.parametrize(
+    "classes", ["event rightcell", "lastcell event", "rightcell event lastcell"]
+)
+def test_formatted_event_remains_a_scheduled_booking(classes):
+    html = SAMPLE_HTML.replace('class="event"', f'class="{classes}"')
+    room = parse_schedule(html, strict=True)["buildings"][0]["rooms"][0]
+    assert room["events"] == [
+        {
+            "start_time": "09:00",
+            "end_time": "10:00",
+            "start_minute": 540,
+            "end_minute": 600,
+            "status": "scheduled",
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    "before,after,error",
+    [
+        ('class="event"', 'class="event rightcell mystery"', "Unrecognized timetable cell"),
+        (
+            '<td rowspan="1">',
+            '<td class="lastcell mystery" rowspan="1">',
+            "Unrecognized timetable cell",
+        ),
+        (
+            'class="event" rowspan="2"',
+            'class="event rightcell" rowspan="0"',
+            "Invalid timetable span",
+        ),
+        (
+            'class="event" rowspan="2"',
+            'class="event rightcell" rowspan="9"',
+            "Rowspan exceeds timetable",
+        ),
+        (
+            '<td rowspan="1">&nbsp;</td>',
+            '<td class="lastcell">Unknown booking</td>',
+            "Unrecognized booking cell",
+        ),
+        (
+            '<td rowspan="1">&nbsp;</td>',
+            '<td class="rightcell"><img alt="Reserved"></td>',
+            "Unrecognized markup",
+        ),
+        ('<td rowspan="1">', '<td class="lastcell" colspan="2">', "Invalid timetable span"),
+    ],
+)
+def test_formatting_classes_do_not_bypass_strict_validation(before, after, error):
+    with pytest.raises(ValueError, match=error):
+        parse_schedule(SAMPLE_HTML.replace(before, after), strict=True)

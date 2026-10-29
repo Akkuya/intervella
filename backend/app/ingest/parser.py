@@ -219,7 +219,9 @@ def _strict_building(building):
                 raise ValueError("Rowspan exceeds timetable")
             remaining[number] = span - 1
             classes = set(cell.get("class", []))
-            if classes - {"event", "cancelled", "blocked"} or cell.find("table"):
+            if classes - {"event", "cancelled", "blocked", "rightcell", "lastcell"} or cell.find(
+                "table"
+            ):
                 raise ValueError("Unrecognized timetable cell")
             event = "event" in classes
             if ("cancelled" in classes and not event) or (not event and cell.get_text(strip=True)):

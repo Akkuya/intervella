@@ -24,7 +24,11 @@ jobs:
           persist-credentials: false
       - name: Windows PowerShell 5.1 regression tests
         shell: powershell
-        run: .\scripts\tests\workflow.tests.ps1
+        run: |
+          .\scripts\tests\workflow.tests.ps1
+          .\scripts\tests\operator.tests.ps1
       - name: PowerShell 7 regression tests
         shell: pwsh
-        run: .\scripts\tests\workflow.tests.ps1
+        run: |
+          .\scripts\tests\workflow.tests.ps1
+          .\scripts\tests\operator.tests.ps1

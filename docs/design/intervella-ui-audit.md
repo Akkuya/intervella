@@ -1,6 +1,6 @@
 # Intervella UI/UX audit and PR #16 specification
 
-Audit: October 29, 2026. Baseline: merged main `fe70d68` (PRs #1–#13). Scope: student React application and separate private operator build. Resolved items below describe PR #14; proposed designs and larger interactions belong to PR #16 and are **not implemented here**.
+Audit: October 29, 2026. Review PR: [#15](https://github.com/Akkuya/intervella/pull/15) (GitHub-assigned number; the supplied brief called this PR #14). Baseline: merged main `fe70d68` (PRs #1–#13). Scope: student React application and separate private operator build. Resolved items below describe PR #15; proposed designs and larger interactions belong to PR #16 and are **not implemented here**.
 
 ## A. Current design assessment
 
@@ -30,34 +30,34 @@ Severity indicates user impact. Critical would mean unsafe availability, data lo
 
 | ID | Component/page | Evidence / user impact | Severity | Resolution / status |
 | --- | --- | --- | --- | --- |
-| B01 | Student/operator headers, page/API titles | Old visible name and Vite favicon split the identity. | Medium | **Resolved #14:** Intervella wordmark/interval favicon, student/operator titles/descriptions, public OG metadata, frontend package and project-check heading. |
-| B02 | README/original scope | Old RoomFinder description promises emptiness, implies unverified library/source facts and lists nonexistent fetch/recommendation files. | Medium | **Resolved #14:** factual intro/current tree and milestone status; discovery scope explicitly historical and subordinate to TRD. No permission inferred. |
-| S01 | Search sidebar | Sticky top with no height bound leaves a ~1008px custom form outside a 650px laptop viewport, hiding Find rooms while results continue scrolling. | High | **Resolved #14:** viewport-bounded scrollable existing column, action/keyboard reachability regression. Mobile remains normal document flow. Revisit nested scrolling in #16. |
+| B01 | Student/operator headers, page/API titles | Old visible name and Vite favicon split the identity. | Medium | **Resolved #15:** Intervella wordmark/interval favicon, student/operator titles/descriptions, public OG metadata, frontend package and project-check heading. |
+| B02 | README/original scope | Old RoomFinder description promises emptiness, implies unverified library/source facts and lists nonexistent fetch/recommendation files. | Medium | **Resolved #15:** factual intro/current tree and milestone status; discovery scope explicitly historical and subordinate to TRD. No permission inferred. |
+| S01 | Search sidebar | Sticky top with no height bound leaves a ~1008px custom form outside a 650px laptop viewport, hiding Find rooms while results continue scrolling. | High | **Resolved #15:** viewport-bounded scrollable existing column, action/keyboard reachability regression. Mobile remains normal document flow. Revisit nested scrolling in #16. |
 | S02 | Mobile search / SearchForm | Intro, source and long form precede results; the synthetic two-card page exceeds 3000px. Changes remain drafts until Find rooms. | High | **Deferred #16:** coordinated reactive filters plus compact summary/expandable filters. Do not remove submit before replacing its semantics. |
 | S03 | Search/navigation | Committed filters/URLs survive navigation; unsubmitted drafts intentionally do not. | Medium | **Deferred #16:** define draft/committed state and replacement-history rules; preserve URL contract. |
-| R01 | FavouriteButton | Large full-width Save/Remove action competes with room identity/navigation. | Medium | **Resolved #14:** shared 44px bookmark control, saved fill/pressed state, unchanged accessible action names, tooltip and storage limits. |
-| R02 | Room cards/details | Building code is present without a contextual route to its calendar. | Medium | **Resolved #14:** understated building link in both contexts, retaining filters/date and independent actions. |
-| R03 | Room card hierarchy | Building code scans weakly; room/state, capacity and repeated booking explanations compete. | Medium | **Partly resolved #14:** header wraps safely and building link improves context. **Deferred #16:** building badge/grouping, concise metadata, useful timing hierarchy. |
+| R01 | FavouriteButton | Large full-width Save/Remove action competes with room identity/navigation. | Medium | **Resolved #15:** shared 44px bookmark control, saved fill/pressed state, unchanged accessible action names, tooltip and storage limits. |
+| R02 | Room cards/details | Building code is present without a contextual route to its calendar. | Medium | **Resolved #15:** understated building link in both contexts, retaining filters/date and independent actions. |
+| R03 | Room card hierarchy | Building code scans weakly; room/state, capacity and repeated booking explanations compete. | Medium | **Partly resolved #15:** header wraps safely and building link improves context. **Deferred #16:** building badge/grouping, concise metadata, useful timing hierarchy. |
 | R04 | Results/source receipt | Correct but verbose counts include zeros; horizon/coverage caveats repeat across cards and collection. | Low | **Deferred #16:** nonzero counts with accessible full summary, consolidated caveats; never call mixed results available. |
-| C01 | CalendarDate, room/building | Date selection already updates the URL automatically; Show schedule implies another required submit. | Medium | **Resolved #14:** redundant form removed, explicit Refresh schedule retained for intentional revalidation. Phone arrows share a row around the date; Refresh sits below. |
-| C02 | Calendar event toggle | Hiding annotations shrinks a one-lane row from 100px to 60px, shifting everything below; multi-lane rows also collapse. | Medium | **Resolved #14:** same lane-derived height in both states; occupied/unknown periods stay visible. Explicit density changes can be designed later. |
-| C03 | Interval dialog | No explicit centering after CSS reset, no height bound for short screens. | Medium | **Resolved #14:** auto margins, viewport height bound/internal overflow, Escape/focus/centering tests. **Deferred #16:** richer grouping of room, timing and status. |
+| C01 | CalendarDate, room/building | Date selection already updates the URL automatically; Show schedule implies another required submit. | Medium | **Resolved #15:** redundant form removed, explicit Refresh schedule retained for intentional revalidation. Phone arrows share a row around the date; Refresh sits below. |
+| C02 | Calendar event toggle | Hiding annotations shrinks a one-lane row from 100px to 60px, shifting everything below; multi-lane rows also collapse. | Medium | **Resolved #15:** same lane-derived height in both states; occupied/unknown periods stay visible. Explicit density changes can be designed later. |
+| C03 | Interval dialog | No explicit centering after CSS reset, no height bound for short screens. | Medium | **Resolved #15:** auto margins, viewport height bound/internal overflow, Escape/focus/centering tests. **Deferred #16:** richer grouping of room, timing and status. |
 | C04 | BuildingSchedules | Flat selector, saved buildings elsewhere, weak chosen-building identity. | Medium | **Deferred #16:** code/name heading, sensible saved-first navigation, easier room transitions; retain one batch request. |
 | C05 | Current-time marker | Every calendar row repeats Now; 67 rooms render 67 labels. | Medium | **Deferred #16:** one labelled time-axis marker with quieter continuation lines; avoid event/room-label collisions. |
 | C06 | Long/mobile calendars | Horizontal region scrolling is intentional, but the 140px sticky label axis consumes much of a phone. | Medium | **Deferred #16:** slimmer label column and clearer date/window context, preserving timeline/list alternatives. |
 | D01 | Overnight/outside-hours searches | 2:00 AM is selectable. API exposes dataset/coverage bounds, not verified opening or teaching hours. Coverage codes have helpful messages under a generic error heading. | Medium | **Deferred #16:** coverage-information state separate from actual API failure. Do not invent a teaching-hours threshold, infer coverage or block covered overnight results. |
-| D02 | Time/search safety | Five-minute UI steps differ from 5–240 elapsed-minute limits; DST repeats, exact Now seconds and expiration are safety constraints. | High constraint | **Preserved #14:** no search/time/API changes; mandatory #16 acceptance cases below. |
+| D02 | Time/search safety | Five-minute UI steps differ from 5–240 elapsed-minute limits; DST repeats, exact Now seconds and expiration are safety constraints. | High constraint | **Preserved #15:** no search/time/API changes; mandatory #16 acceptance cases below. |
 | V01 | Typography/radius/spacing | Trebuchet display/Segoe body, direct operator heading sizing, radii 4–16px and uneven densities. | Medium | **Deferred #16:** small semantic token set/component variants using the current stack. |
-| V02 | Saved-building border | Undefined `--border` drops the declared outline. | Low | **Resolved #14:** existing `--line` token. |
-| V03 | Disabled cursor | Global wait cursor incorrectly suggests loading for reached save limits/invalid actions. | Low | **Resolved #14:** not-allowed cursor; busy status remains explicit. |
-| V04 | Motion/feedback | Popups animate but general interactive color changes are abrupt. | Low | **Resolved #14:** 140ms color/border transitions, disabled by existing reduced-motion rules. Larger filter/saved choreography deferred; no layout animation. |
+| V02 | Saved-building border | Undefined `--border` drops the declared outline. | Low | **Resolved #15:** existing `--line` token. |
+| V03 | Disabled cursor | Global wait cursor incorrectly suggests loading for reached save limits/invalid actions. | Low | **Resolved #15:** not-allowed cursor; busy status remains explicit. |
+| V04 | Motion/feedback | Popups animate but general interactive color changes are abrupt. | Low | **Resolved #15:** 140ms color/border transitions, disabled by existing reduced-motion rules. Larger filter/saved choreography deferred; no layout animation. |
 | V05 | Touch density | Main inputs/bookmarks are at least 44px, but calendar cells/appearance controls include ~38px targets. | Low | **Deferred #16:** evaluate 44px coarse-pointer targets without overflowing the month grid; keep accessible primitives. |
 | V06 | Student bundle | Existing production bundle exceeds Vite's 500kB advisory (about 567kB minified after this PR). | Medium | **Deferred #16:** measure route/control splitting and font payload; no new dependency added here. |
 | O01 | Operator wizard/overview | Dense metrics, tables and manifest editor are long on phone; review progress is visually weak. | Medium | **Deferred #16:** operation-specific density, progress/review summary, structured manual-manifest guidance. No automatic inventory generation. |
 | O02 | Operator errors/history | Underscore-replaced codes are technical; candidate/baseline IDs need clearer grouping. | Medium | **Deferred #16:** known-code actionable copy with safe reference disclosure and exact confirmation IDs. Never show private raw server exceptions. |
 | O03 | Operator theme startup | ThemeControl applies saved theme after mounting; student HTML also applies it earlier. Operator can flash light. | Low | **Deferred #16:** CSP-compatible early theme application; do not weaken CSP for cosmetic convenience. |
-| O04 | Privilege/publication boundary | Separate build/service, auth, trusted Origin, CSRF and confirmed IDs already exist. | High constraint | **Preserved #14:** operator UI branding only; security/publication tests remain. |
-| P01 | Public provenance | Fresh timestamp does not establish source authorization; no verified provenance flag exists in UI contract. | High constraint | **Preserved #14:** unverified/demo notice everywhere, no new public-data certification. |
+| O04 | Privilege/publication boundary | Separate build/service, auth, trusted Origin, CSRF and confirmed IDs already exist. | High constraint | **Preserved #15:** operator UI branding only; security/publication tests remain. |
+| P01 | Public provenance | Fresh timestamp does not establish source authorization; no verified provenance flag exists in UI contract. | High constraint | **Preserved #15:** unverified/demo notice everywhere, no new public-data certification. |
 
 ### Part 2A mapping
 
@@ -102,13 +102,13 @@ Proposals for #16 only. No domain purchase, hosted assets or university endorsem
 | Strength | Builds on existing tokens; calm schedule-specific identity, lower migration cost | Excellent density/operations fit | Friendly student identity and clear hierarchy |
 | Weakness | Needs disciplined grouping to avoid a generic blue dashboard; fonts must justify cost | Can feel administrative for students | More spacing/dual fonts increase page length/cost; iris cannot imply state |
 
-Choose **Campus cadence**. Its distinguishing feature is the visual grammar of an interval, not a decorative hero or animated background. Preserve #14's simple mark and functioning primitives; prioritize a stable search experience and scan order. These are proposed font roles, not a new dependency decision: if licensed self-hosted subsets cannot fit the performance budget, retain system fonts and apply the same scale/weights.
+Choose **Campus cadence**. Its distinguishing feature is the visual grammar of an interval, not a decorative hero or animated background. Preserve #15's simple mark and functioning primitives; prioritize a stable search experience and scan order. These are proposed font roles, not a new dependency decision: if licensed self-hosted subsets cannot fit the performance budget, retain system fonts and apply the same scale/weights.
 
 ## D. Recommended design system
 
 ### Proposed tokens
 
-Define semantic CSS properties in `index.css`, keeping temporary aliases while converting current components. No hardcoded semantic state colors inside components. The following is a #16 specification, not #14's implemented palette.
+Define semantic CSS properties in `index.css`, keeping temporary aliases while converting current components. No hardcoded semantic state colors inside components. The following is a #16 specification, not #15's implemented palette.
 
 | Token | Light | Dark | Purpose |
 | --- | --- | --- | --- |
@@ -237,3 +237,5 @@ No physical-device, Safari/Firefox or manual screen-reader conformance is claime
 Known limits: Vite's pre-existing >500kB student-chunk advisory remains; fonts/lazy route splitting belong to #16. Physical devices, manual assistive technology and public source authorization are not verified. No private local database or snapshots were modified.
 
 The built operator page, `/assets/intervella.svg`, and unauthenticated `/ops/health` boundary also passed a local TestClient smoke check without opening any database.
+
+Final operator evidence assertions (including login and expanded history) passed all 28 cases in an additional focused run.

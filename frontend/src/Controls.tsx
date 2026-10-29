@@ -217,6 +217,7 @@ export function TimePicker({
   start,
   suggestions = [],
   onSuggestion,
+  minuteStep = 5,
 }: {
   label: string
   value: string
@@ -225,6 +226,7 @@ export function TimePicker({
   start?: string
   suggestions?: TimeSuggestion[]
   onSuggestion?: (suggestion: TimeSuggestion) => void
+  minuteStep?: 5 | 30
 }) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(value)
@@ -240,6 +242,8 @@ export function TimePicker({
   const validate = () => {
     try {
       const next = parseTimeText(text)
+      if (Number(next.slice(3)) % minuteStep !== 0)
+        throw new Error('Expected coverage must use half-hour boundaries (00 or 30 minutes).')
       if (!allowedTime(date, next, start))
         throw new Error(
           'This time does not exist in Toronto, or is outside the allowed 5–240 minute window.',
@@ -284,7 +288,9 @@ export function TimePicker({
           <p className="time-preview" aria-live="polite">
             {timeText(draft)}
           </p>
-          <p className="small">Toronto time · five-minute selections</p>
+          <p className="small">
+            Toronto time · {minuteStep === 30 ? 'half-hour' : 'five-minute'} selections
+          </p>
           <label>
             Hour
             <Select
@@ -297,7 +303,7 @@ export function TimePicker({
                   key={index + 1}
                   value={index + 1}
                   disabled={
-                    !Array.from({ length: 12 }, (_, m) => m * 5).some((m) =>
+                    !Array.from({ length: 60 / minuteStep }, (_, m) => m * minuteStep).some((m) =>
                       allowedTime(
                         date,
                         `${String(((index + 1) % 12) + (hour >= 12 ? 12 : 0)).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
@@ -314,11 +320,11 @@ export function TimePicker({
           <span className="small">Minute</span>
           <RadioGroup
             aria-label="Minute"
-            className="minute-grid"
+            className={minuteStep === 30 ? 'minute-grid half-hour-grid' : 'minute-grid'}
             value={String(minute)}
             onChange={(value) => update(hour, Number(value))}
           >
-            {Array.from({ length: 12 }, (_, index) => index * 5).map((m) => (
+            {Array.from({ length: 60 / minuteStep }, (_, index) => index * minuteStep).map((m) => (
               <Radio
                 key={m}
                 value={String(m)}

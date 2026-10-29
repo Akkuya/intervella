@@ -1,4 +1,4 @@
-# RoomFinder (UTSC)
+# Intervella (UTSC)
 
 Find an empty classroom at UTSC, right now, near you.
 
@@ -204,3 +204,5 @@ Milestones 1–4 implemented: PostgreSQL foundation, public API, React applicati
 ## Disclaimer
 
 This is an independent student project, not an official UTSC or University of Toronto tool. It is not affiliated with or endorsed by UTSC IT.
+
+Private operator dashboard: see [OPERATOR.md](OPERATOR.md). Start it separately with `./operator.ps1`; it uses a dedicated ingestion role, authentication and CSRF protection. The public student application gains no privileged routes.

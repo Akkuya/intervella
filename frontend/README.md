@@ -136,3 +136,15 @@ Calendar navigation remains valid when a retained Now/until search expires. The 
 Mixed search results use Room status and explicit counts for available, scheduled-conflict, unknown and inactive listings; the per-room badges remain authoritative. Include-next never labels the whole collection available. Saved-room status counts apply only to returned saved listings.
 
 Free now with a fixed Available until end stops being a valid request when fewer than five minutes remain. The app then hides earlier room claims, stops availability polling, and shows Session ending; at the selected end it shows Session expired. Exact boundary timers and visibility/focus checks update both Find and Saved views, even when background timers were suspended. Choose a later end or Duration to resume. Fixed custom-time searches and independent room/building calendars retain their existing behavior. Malformed dates, DST choices and windows over four hours still receive normal input validation.
+
+## Custom controls
+
+Selectors use React Aria listboxes, and dates use its monthly calendar with Toronto-based today highlighting. Popups are portaled, themed, keyboard navigable, touch friendly, and dismiss with Escape while restoring focus. Native page/calendar scrolling and sticky room labels are retained; reduced motion and forced colors are supported.
+
+Start/end time popups have a 1–12 hour selector, twelve five-minute minute choices, AM/PM, a preview, and text entry (`2:30 PM`, `14:30`, `1430`). Typed off-grid times are rejected, never rounded. Existing bookmarked times remain unchanged until explicitly replaced. Starting a new custom search initializes at the nearest five-minute instant; **Free now always sends the exact current instant**. Missing spring DST times are disabled/rejected, and repeated fall times still require an explicit occurrence.
+
+End shortcuts add elapsed time and carry the Toronto date/offset across midnight/DST. For a live start with seconds or off-grid minutes, shortcuts suggest the next five-minute endpoint and use `~` to mark the approximate duration. The API still enforces 5–240 elapsed minutes and all coverage rules.
+
+`custom-controls.spec.ts` captures opened select, date, and time popups in both themes on desktop and mobile. Screenshots use disabled animations to capture the settled popup; exit animations are finished without advancing the controlled search clock. Automated accessibility checks do not replace manual assistive-technology testing.
+
+The separate private operator build is `npm run build:operator`. Build both applications before Playwright: it starts the student preview on 4173 and private UI preview on 4174, with synthetic intercepted operator responses. The real authenticated operator service serves only `dist-operator` on loopback 8765; see `../OPERATOR.md`. The normal student build remains separate.

@@ -3,7 +3,7 @@ param([switch]$Fast)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'scripts/workflow.ps1')
 $savedEnvironment = @{}
-foreach ($name in @('DATABASE_URL', 'TEST_DATABASE_URL', 'INGESTION_DATABASE_URL', 'MIGRATION_DATABASE_URL', 'CI')) {
+foreach ($name in @('DATABASE_URL', 'TEST_DATABASE_URL', 'INGESTION_DATABASE_URL', 'MIGRATION_DATABASE_URL', 'OPERATOR_SECRET', 'CI')) {
     $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
 }
 $results = New-Object 'System.Collections.Generic.List[object]'
@@ -17,12 +17,13 @@ try {
         Ensure-LocalPostgres $tools.docker $configuration.POSTGRES_CONTAINER $maintenance
     }
     # Tests never inherit development, ingestion or migration connections.
-    foreach ($name in @('DATABASE_URL', 'INGESTION_DATABASE_URL', 'MIGRATION_DATABASE_URL', 'TEST_DATABASE_URL')) { [Environment]::SetEnvironmentVariable($name, $null, 'Process') }
+    foreach ($name in @('DATABASE_URL', 'INGESTION_DATABASE_URL', 'MIGRATION_DATABASE_URL', 'TEST_DATABASE_URL', 'OPERATOR_SECRET')) { [Environment]::SetEnvironmentVariable($name, $null, 'Process') }
     if (-not $Fast) { $env:TEST_DATABASE_URL = $configuration.TEST_DATABASE_URL }
     $backend = Join-Path $PSScriptRoot 'backend'
     $frontend = Join-Path $PSScriptRoot 'frontend'
     $shell = (Get-Process -Id $PID).Path
     Invoke-WorkflowCheck Workflow 'PowerShell regression' $shell @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'scripts/tests/workflow.tests.ps1')) $PSScriptRoot $results
+    Invoke-WorkflowCheck Workflow 'Operator configuration' $shell @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'scripts/tests/operator.tests.ps1')) $PSScriptRoot $results
     Invoke-WorkflowCheck Backend 'Ruff lint' $tools.uv @('run', '--no-env-file', '--no-sync', 'ruff', 'check', '.') $backend $results
     Invoke-WorkflowCheck Backend 'Ruff format' $tools.uv @('run', '--no-env-file', '--no-sync', 'ruff', 'format', '--check', '.') $backend $results
     Invoke-WorkflowCheck Backend mypy $tools.uv @('run', '--no-env-file', '--no-sync', 'mypy', '.') $backend $results
@@ -31,17 +32,19 @@ try {
     foreach ($entry in @(@('ESLint', 'lint'), @('Prettier', 'format:check'), @('TypeScript', 'typecheck'), @('Unit tests', 'test'), @('Build', 'build'))) {
         Invoke-WorkflowCheck Frontend $entry[0] $tools.'npm.cmd' @('run', $entry[1]) $frontend $results
     }
+    Invoke-WorkflowCheck Frontend 'Operator build' $tools.'npm.cmd' @('run', 'build:operator') $frontend $results
     Invoke-WorkflowCheck Frontend 'Dependency audit' $tools.'npm.cmd' @('audit', '--audit-level=high') $frontend $results
     if ($Fast) {
         Write-Host "`nFAST: PostgreSQL integration tests and Playwright browser tests were SKIPPED." -ForegroundColor Yellow
         $results.Add([pscustomobject]@{ Group = 'Backend'; Name = 'PostgreSQL integration'; Status = 'SKIP' })
         $results.Add([pscustomobject]@{ Group = 'Frontend'; Name = 'Playwright'; Status = 'SKIP' })
-    } elseif (($results | Where-Object { $_.Name -eq 'Build' }).Status -ne 'PASS') {
+    } elseif (@($results | Where-Object { $_.Name -in @('Build', 'Operator build') -and $_.Status -ne 'PASS' }).Count) {
         Write-Host 'Playwright skipped because Build failed; refusing to test stale production assets.'
         $results.Add([pscustomobject]@{ Group = 'Frontend'; Name = 'Playwright'; Status = 'SKIP' })
     } else {
         try {
             Assert-FreePort 4173
+            Assert-FreePort 4174
             # Force a fresh preview server, matching CI instead of reusing somebody else's server.
             $env:CI = 'true'
             Invoke-WorkflowCheck Frontend Playwright $tools.'npm.cmd' @('run', 'test:e2e') $frontend $results

@@ -6,6 +6,7 @@ import { campusDate, campusTimeLabel, dateLabel, nextBookingLabel, validDate } f
 import { eventLabel, layoutEvents, positionRange, shiftDay } from './calendar-layout.ts'
 import { Badge, Button } from './ui.tsx'
 import './calendar.css'
+import { DatePicker } from './Controls.tsx'
 
 export function CalendarDate({
   date,
@@ -49,16 +50,7 @@ export function CalendarDate({
       >
         <label>
           Schedule date
-          <input
-            type="date"
-            name="schedule_date"
-            key={date}
-            required
-            defaultValue={date}
-            onChange={() => {
-              setError('')
-            }}
-          />
+          <DatePicker label="Schedule date" value={date} name="schedule_date" onChange={apply} />
         </label>
         <Button variant="secondary" type="submit">
           Show schedule

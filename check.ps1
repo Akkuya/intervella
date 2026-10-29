@@ -53,7 +53,7 @@ try {
             $results.Add([pscustomobject]@{ Group = 'Frontend'; Name = 'Playwright'; Status = 'FAIL' })
         }
     }
-    Write-Host "`nUTSCVacant - Project Checks"
+    Write-Host "`nIntervella - Project Checks"
     foreach ($group in @('Workflow', 'Backend', 'Frontend')) {
         Write-Host "`n$group"
         foreach ($result in $results | Where-Object { $_.Group -eq $group }) { Write-Host ('  {0,-24} {1}' -f $result.Name, $result.Status) }

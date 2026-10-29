@@ -111,6 +111,17 @@ async function setup(page: import('@playwright/test').Page) {
     })
   })
   await page.goto('/operator.html')
+  await expect(page).toHaveTitle('Intervella · Private operations')
+  await expect(page.locator('body')).not.toContainText(/UTSCVacant|RoomFinder/)
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', '/assets/intervella.svg')
+  const icon = await page.request.get('/assets/intervella.svg')
+  expect(icon.ok()).toBe(true)
+  await expect(page.getByRole('button', { name: 'Unlock private dashboard' })).toBeVisible()
+  await page.screenshot({
+    path: test.info().outputPath('operator-login.png'),
+    fullPage: true,
+    animations: 'disabled',
+  })
   await page.getByLabel('Operator secret').fill('synthetic-secret-not-a-real-credential')
   await page.getByRole('button', { name: 'Unlock private dashboard' }).click()
   await expect(page.getByRole('heading', { name: 'Data health & publication' })).toBeVisible()
@@ -146,63 +157,83 @@ async function fillImport(page: import('@playwright/test').Page, format = 'weekl
       .fill('2026-10-25T11:00:00Z')
   }
 }
-for (const theme of ['light', 'dark'])
-  test(`private overview, wizard and explicit publication in ${theme}`, async ({ page }, info) => {
-    const calls = await setup(page)
-    await choose(page, 'Appearance', theme)
-    await expect(page.getByText('Stale source: importing again')).toBeVisible()
-    await page.screenshot({
-      path: info.outputPath(`operator-overview-${theme}.png`),
-      fullPage: true,
-      animations: 'disabled',
-    })
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
-    await fillImport(page)
-    await page.screenshot({
-      path: info.outputPath(`operator-wizard-${theme}.png`),
-      fullPage: true,
-      animations: 'disabled',
-    })
-    await page
-      .getByRole('button', { name: 'Validate & compare (no database writes)', exact: true })
-      .click()
-    await expect(page.getByRole('heading', { name: '4. Validation & comparison' })).toBeVisible()
-    expect(calls.stages()).toBe(0)
-    expect(calls.publishes()).toBe(0)
-    await page.screenshot({
-      path: info.outputPath(`operator-comparison-${theme}.png`),
-      fullPage: true,
-      animations: 'disabled',
-    })
-    await expect(
-      page.getByRole('button', { name: 'Stage reviewed candidate', exact: true }),
-    ).toBeDisabled()
-    await page
-      .getByRole('checkbox', { name: 'I reviewed the candidate comparison and warnings.' })
-      .check()
-    await page.getByRole('button', { name: 'Stage reviewed candidate', exact: true }).click()
-    await expect(page.getByText('Staged candidate:', { exact: false })).toBeVisible()
-    expect(calls.publishes()).toBe(0)
-    await page.getByRole('button', { name: 'Review publication', exact: true }).click()
-    await expect(page.getByRole('dialog', { name: 'Confirm dataset publication' })).toBeVisible()
-    await page.screenshot({
-      path: info.outputPath(`operator-confirmation-${theme}.png`),
-      animations: 'disabled',
-    })
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
-    await page.keyboard.press('Escape')
-    await expect(page.getByRole('dialog')).toHaveCount(0)
-    expect(calls.publishes()).toBe(0)
-    await page.getByRole('button', { name: 'Review publication', exact: true }).click()
-    await page
-      .getByRole('checkbox', {
-        name: 'I reviewed this publication identifier, baseline, and warnings.',
+for (const theme of ['light', 'dark'] as const)
+  for (const width of [360, 390, 430, 768, 1024, 1440])
+    test(`private overview, wizard and explicit publication at ${width}px in ${theme}`, async ({
+      page,
+    }, info) => {
+      await page.setViewportSize({ width, height: 900 })
+      await page.emulateMedia({ colorScheme: theme })
+      const calls = await setup(page)
+      await choose(page, 'Appearance', theme)
+      await expect(page.getByText('Stale source: importing again')).toBeVisible()
+      await page.screenshot({
+        path: info.outputPath(`operator-overview-${theme}.png`),
+        fullPage: true,
+        animations: 'disabled',
       })
-      .check()
-    await page.getByRole('button', { name: 'Confirm publish dataset', exact: true }).click()
-    await expect(page.getByText(`Publication verified: ${dataset}`)).toBeVisible()
-    expect(calls.publishes()).toBe(1)
-  })
+      expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      )
+      await fillImport(page)
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      )
+      await page.screenshot({
+        path: info.outputPath(`operator-wizard-${theme}.png`),
+        fullPage: true,
+        animations: 'disabled',
+      })
+      await page
+        .getByRole('button', { name: 'Validate & compare (no database writes)', exact: true })
+        .click()
+      await expect(page.getByRole('heading', { name: '4. Validation & comparison' })).toBeVisible()
+      expect(calls.stages()).toBe(0)
+      expect(calls.publishes()).toBe(0)
+      await page.screenshot({
+        path: info.outputPath(`operator-comparison-${theme}.png`),
+        fullPage: true,
+        animations: 'disabled',
+      })
+      await expect(
+        page.getByRole('button', { name: 'Stage reviewed candidate', exact: true }),
+      ).toBeDisabled()
+      await page
+        .getByRole('checkbox', { name: 'I reviewed the candidate comparison and warnings.' })
+        .check()
+      await page.getByRole('button', { name: 'Stage reviewed candidate', exact: true }).click()
+      await expect(page.getByText('Staged candidate:', { exact: false })).toBeVisible()
+      expect(calls.publishes()).toBe(0)
+      await page.getByRole('button', { name: 'Review publication', exact: true }).click()
+      await expect(page.getByRole('dialog', { name: 'Confirm dataset publication' })).toBeVisible()
+      await page.screenshot({
+        path: info.outputPath(`operator-confirmation-${theme}.png`),
+        animations: 'disabled',
+      })
+      expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
+      await page.keyboard.press('Escape')
+      await expect(page.getByRole('dialog')).toHaveCount(0)
+      expect(calls.publishes()).toBe(0)
+      await page.getByRole('button', { name: 'Review publication', exact: true }).click()
+      await page
+        .getByRole('checkbox', {
+          name: 'I reviewed this publication identifier, baseline, and warnings.',
+        })
+        .check()
+      await page.getByRole('button', { name: 'Confirm publish dataset', exact: true }).click()
+      await expect(page.getByText(`Publication verified: ${dataset}`)).toBeVisible()
+      expect(calls.publishes()).toBe(1)
+      await page.getByRole('button', { name: 'Import history', exact: true }).click()
+      await expect(page.getByRole('heading', { name: 'Audited import history' })).toBeVisible()
+      await page.getByRole('button', { name: /succeeded.*published/ }).click()
+      await expect(page.getByText('synthetic-review', { exact: true })).toBeVisible()
+      await page.screenshot({
+        path: info.outputPath(`operator-history-${theme}.png`),
+        fullPage: true,
+        animations: 'disabled',
+      })
+    })
 test('daily import, missing files, and recoverable preview failure', async ({ page }) => {
   const calls = await setup(page)
   await fillImport(page, 'daily')

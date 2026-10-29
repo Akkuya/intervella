@@ -24,6 +24,7 @@ export function CalendarDate({
       return
     }
     const params = new URLSearchParams(query)
+    setError('')
     params.set('schedule_date', day)
     if (!navigate(params)) onRefresh()
   }
@@ -42,20 +43,10 @@ export function CalendarDate({
       >
         ←
       </Button>
-      <form
-        onSubmit={(event) => {
-          event.preventDefault()
-          apply(String(new FormData(event.currentTarget).get('schedule_date') ?? ''))
-        }}
-      >
-        <label>
-          Schedule date
-          <DatePicker label="Schedule date" value={date} name="schedule_date" onChange={apply} />
-        </label>
-        <Button variant="secondary" type="submit">
-          Show schedule
-        </Button>
-      </form>
+      <label>
+        Schedule date
+        <DatePicker label="Schedule date" value={date} name="schedule_date" onChange={apply} />
+      </label>
       <Button
         variant="secondary"
         aria-label="Next day"
@@ -68,6 +59,9 @@ export function CalendarDate({
         }}
       >
         →
+      </Button>
+      <Button variant="secondary" className="refresh-schedule" onClick={onRefresh}>
+        Refresh schedule
       </Button>
       {error && <p role="alert">{error}</p>}
     </div>
@@ -211,9 +205,10 @@ export function Calendar({
           {entries.map((entry) => {
             const name = roomLabel(entry.room),
               events = layoutEvents(entry.meetings, window)
-            const height = show
-              ? Math.max(100, (Math.max(0, ...events.map((event) => event.lane)) + 1) * 62 + 28)
-              : 60
+            const height = Math.max(
+              100,
+              (Math.max(0, ...events.map((event) => event.lane)) + 1) * 62 + 28,
+            )
             const params = new URLSearchParams(query)
             params.set('room', String(entry.room.room_id))
             return (

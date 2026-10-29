@@ -177,7 +177,7 @@ export default function Operator() {
     return (
       <div className="ops-login shell">
         <header className="ops-header">
-          <strong>UTSCVacant · Private operations</strong>
+          <strong>Intervella · Private operations</strong>
           <ThemeControl />
         </header>
         <main className="ops-login-card">
@@ -238,7 +238,7 @@ export default function Operator() {
     <div className="ops-shell">
       <header className="ops-header">
         <a href="#overview" className="brand">
-          UTSCVacant <span className="small">/ operations</span>
+          Intervella <span className="small">/ operations</span>
         </a>
         <div className="ops-actions">
           <ThemeControl />

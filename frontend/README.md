@@ -1,4 +1,4 @@
-# UTSCVacant frontend
+# Intervella frontend
 
 A mobile-first React application for the existing FastAPI availability API. The October 14, 2026 TRD governs coverage, freshness, timezone, and frontend behavior.
 
@@ -94,7 +94,7 @@ Authorized ingestion, provenance, production deployment/TLS/role checks, and bro
 
 ## Milestone 5A: appearance and presentation
 
-Appearance offers Light, Dark and System (default). Only the selected preference is stored under `utscvacant.appearance`; blocked storage still allows changes for the session. The small bootstrap in index.html applies the saved/OS choice before the application loads; a deployment CSP must permit that bootstrap using a hash or equivalent policy. No third-party fonts or UI framework were added.
+Appearance offers Light, Dark and System (default). Only the selected preference is stored under `utscvacant.appearance`; blocked storage still allows changes for the session. The small bootstrap in index.html applies the saved/OS choice before the application loads; a deployment CSP must permit that bootstrap using a hash or equivalent policy. Fonts remain local/system fonts; custom controls use the existing React Aria primitives.
 
 Full room labels consistently combine the API's building code and room number, including basement identifiers. Friendly times always use America/Toronto, independent of device timezone; EDT/EST is shown when a repeated hour needs disambiguation. Source details remain available in an expandable disclosure. Milestone 5C adds server-proven free-until bounds; null next booking still never establishes unlimited availability.
 
@@ -148,3 +148,11 @@ End shortcuts add elapsed time and carry the Toronto date/offset across midnight
 `custom-controls.spec.ts` captures opened select, date, and time popups in both themes on desktop and mobile. Screenshots use disabled animations to capture the settled popup; exit animations are finished without advancing the controlled search clock. Automated accessibility checks do not replace manual assistive-technology testing.
 
 The separate private operator build is `npm run build:operator`. Build both applications before Playwright: it starts the student preview on 4173 and private UI preview on 4174, with synthetic intercepted operator responses. The real authenticated operator service serves only `dist-operator` on loopback 8765; see `../OPERATOR.md`. The normal student build remains separate.
+
+## Intervella identity and UI audit
+
+The student and private operator builds share the interval mark at `/assets/intervella.svg`, under the existing static asset mount. Display names, metadata, and the frontend package are branded Intervella; `utscvacant.appearance`, `utscvacant.favourites`, and `utscvacant.showEvents` are deliberately unchanged.
+
+Search still requires **Find rooms**. On desktop its existing sticky column scrolls within the viewport; on phones it stays in document flow. Calendar dates apply immediately; **Refresh schedule** explicitly rechecks the selected day. Hiding scheduled annotations preserves row heights and all scheduled/unknown coverage periods. Bookmark icons retain Save/Remove accessible labels, pressed state, and 44px targets. Building links preserve search parameters and selected Toronto dates.
+
+See [the audit and PR #16 plan](../docs/design/intervella-ui-audit.md). `brand-audit.spec.ts` and `operator.spec.ts` exercise 360/390/430/768/1024/1440px in both themes with synthetic responses and screenshots in `test-results/`. Existing CI uploads these alongside its other browser artifacts.

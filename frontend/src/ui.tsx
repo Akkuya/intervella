@@ -31,6 +31,36 @@ export function EmptyState({ title, children }: { title: string; children: React
   )
 }
 
+export function BuildingLink({
+  code,
+  params,
+  date,
+}: {
+  code: string
+  params: URLSearchParams
+  date?: string
+}) {
+  const target = new URLSearchParams(params)
+  target.set('view', 'buildings')
+  target.set('building', code)
+  target.delete('room')
+  const day =
+    date ??
+    target.get('schedule_date') ??
+    (target.get('mode') === 'custom' ? target.get('date') : null)
+  if (day) target.set('schedule_date', day)
+  return (
+    <a
+      className="building-link"
+      href={`?${target}`}
+      onClick={(event) => routeClick(event, target)}
+      aria-label={`View ${code} building schedule`}
+    >
+      {code} building schedule <span aria-hidden="true">↗</span>
+    </a>
+  )
+}
+
 export function RoomCard({
   room,
   params,
@@ -68,6 +98,7 @@ export function RoomCard({
         View {name}
         <span aria-hidden="true">↗</span>
       </a>
+      <BuildingLink code={room.building_code} params={params} />
     </article>
   )
 }

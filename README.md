@@ -1,16 +1,18 @@
 # Intervella (UTSC)
 
-Find an empty classroom at UTSC, right now, near you.
+**Find your space between classes.**
+
+Intervella is an independent UTSC student project for checking scheduled classroom availability. It is not an official University of Toronto service, and a timetable gap does not guarantee physical access or vacancy.
 
 ## The problem
 
-UTSC's only bookable study space is the library, and it's small and almost always full. Meanwhile most classrooms sit empty for huge chunks of the day. RoomFinder reads the campus classroom schedule and tells you which rooms have no class running right now, so you actually know where to go.
+Finding a place to study between classes can mean checking multiple schedules or walking between buildings. Intervella presents rooms with confirmed timetable coverage and no scheduled conflict for a chosen interval, while keeping unknown coverage and older data explicit.
 
 **This app does not book anything.** It only shows which rooms have no scheduled lecture at the current time. Booking is out of scope, on purpose.
 
 ## How it works
 
-The HTML parser handles supplied classroom schedule snapshots. PostgreSQL stores versioned schedule data and explicit coverage. FastAPI provides validated availability and room schedules; the React application supports current/custom searches, bookmarks, room details, and honest freshness/coverage states. Live ingestion and source authorization remain future work. Every frontend view clearly labels data as unverified/demo.
+The HTML parser handles supplied classroom schedule snapshots. PostgreSQL stores versioned schedule data and explicit coverage. FastAPI provides validated availability and room schedules; the React application supports current/custom searches, bookmarks, room details, and honest freshness/coverage states. Authorized local daily and weekly HTML imports can be reviewed in a separate private operator dashboard and published atomically. Live retrieval and permission for public republication remain separate, unverified matters. Every frontend view clearly labels data as unverified/demo.
 
 A room being "free" here means **no class is scheduled there right now**. It doesn't mean the room is unlocked, unoccupied by a club or exam, or otherwise guaranteed empty — see [Data source and limitations](#data-source-and-limitations).
 
@@ -40,24 +42,19 @@ A room being "free" here means **no class is scheduled there right now**. It doe
 ## Project structure
 
 ```txt
-roomfinder/
+intervella/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py          # FastAPI app + routes
-│   │   ├── models.py        # Stable rooms, datasets, coverage, occurrences
-│   │   ├── db.py
-│   │   ├── services/
-│   │   │   ├── availability.py   # is a room free / free until when
-│   │   │   └── recommend.py      # recommendation scoring
-│   │   └── ingest/
-│   │       ├── fetch.py     # pull raw schedule HTML
-│   │       ├── parse.py     # HTML -> clean rows
-│   │       └── load.py      # write to DB
-│   ├── data/                 # cached raw snapshots (gitignored)
-│   └── tests/
-├── frontend/
-│   └── src/ (api/, components/, pages/, hooks/)
-└── docs/
+│   │   ├── main.py          # Public FastAPI routes
+│   │   ├── models.py        # Stable rooms, datasets, explicit coverage
+│   │   ├── services/        # Availability and calendar queries
+│   │   ├── ingest/          # Local snapshot parsing and atomic publication
+│   │   └── operator/        # Separate private operator service
+│   ├── data/               # Private local inputs; ignored by Git
+│   └── tests/              # Synthetic unit/PostgreSQL tests
+├── frontend/               # Student app and separate operator build
+├── scripts/                # Safe Windows development/check launchers
+└── docs/design/            # UI audit and future redesign specification
 ```
 
 ## Data source and limitations
@@ -199,10 +196,14 @@ Workflow-only regression tests: `.\scripts\tests\workflow.tests.ps1`.
 
 ## Status
 
-Milestones 1–4 implemented: PostgreSQL foundation, public API, React application, and [seven-day local ingestion with atomic publication](backend/INGESTION.md). See [API contracts](backend/README.md#milestone-2-public-rest-api), [frontend guide](frontend/README.md), and [`docs/scope.md`](docs/scope.md). The fixed synthetic seed is not current campus data. Source access/republication authorization and public deployment remain separate requirements.
+Milestones 1–6 implemented: PostgreSQL foundation, public API, React application, local daily/weekly ingestion with atomic publication, calendars, saved rooms, custom controls, and a separate private operator dashboard. See [the ingestion guide](backend/INGESTION.md). See [API contracts](backend/README.md#milestone-2-public-rest-api), [frontend guide](frontend/README.md), and [`docs/scope.md`](docs/scope.md). The fixed synthetic seed is not current campus data. Source access/republication authorization and public deployment remain separate requirements.
 
 ## Disclaimer
 
 This is an independent student project, not an official UTSC or University of Toronto tool. It is not affiliated with or endorsed by UTSC IT.
 
 Private operator dashboard: see [OPERATOR.md](OPERATOR.md). Start it separately with `./operator.ps1`; it uses a dedicated ingestion role, authentication and CSRF protection. The public student application gains no privileged routes.
+
+## Brand and UI review
+
+See [the Intervella UI audit](docs/design/intervella-ui-audit.md) for resolved defects, compatibility names retained intentionally, synthetic visual evidence, and the proposed PR #16 redesign. No domain purchase or deployment is assumed.

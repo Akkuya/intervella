@@ -1,4 +1,4 @@
-# Backend development
+# Intervella backend development
 
 Run backend commands from this directory:
 

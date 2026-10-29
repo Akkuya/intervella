@@ -23,6 +23,7 @@ import { ThemeControl } from './theme.tsx'
 import { roomLabel } from './rooms.ts'
 import { Results } from './Results.tsx'
 import { SavedRooms } from './SavedRooms.tsx'
+import { BuildingLink } from './ui.tsx'
 import { FavouriteButton } from './FavouriteButton.tsx'
 import { Calendar, CalendarDate, MeetingList } from './Calendar.tsx'
 import { BuildingSchedules } from './BuildingSchedules.tsx'
@@ -74,7 +75,14 @@ function RoomDetails({
           </p>
         )}
         {details && (
-          <FavouriteButton kind="rooms" id={details.room_id} label={roomLabel(details)} />
+          <div className="detail-actions">
+            <FavouriteButton kind="rooms" id={details.room_id} label={roomLabel(details)} />
+            <BuildingLink
+              code={details.building_code}
+              params={new URLSearchParams(query)}
+              date={date}
+            />
+          </div>
         )}
       </div>
       {!online ? (
@@ -245,12 +253,8 @@ export default function App() {
       </a>
       <header className="site-header shell">
         <a className="brand" href="?" onClick={(event) => routeClick(event, new URLSearchParams())}>
-          <span className="brand-mark" aria-hidden="true">
-            u.
-          </span>
-          <span>
-            UTSC<span className="brand-accent">Vacant</span>
-          </span>
+          <img className="brand-mark" src="/assets/intervella.svg" alt="" width="40" height="40" />
+          <span>Intervella</span>
         </a>
         <ThemeControl />
         <nav className="app-navigation" aria-label="Application">
@@ -324,7 +328,7 @@ export default function App() {
           <>
             <div className="intro">
               <div>
-                <p className="eyebrow">Find your next study spot</p>
+                <p className="eyebrow">Find your space between classes.</p>
                 <h1 id="page-title" tabIndex={-1}>
                   Find a room
                   <br className="desktop-break" /> between classes.

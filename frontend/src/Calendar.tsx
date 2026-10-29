@@ -16,7 +16,6 @@ export function CalendarDate({
   query: string
   onRefresh: () => void
 }) {
-  const [value, setValue] = useState(date)
   const [error, setError] = useState('')
   const apply = (day: string) => {
     if (!validDate(day)) {
@@ -45,17 +44,18 @@ export function CalendarDate({
       <form
         onSubmit={(event) => {
           event.preventDefault()
-          apply(value)
+          apply(String(new FormData(event.currentTarget).get('schedule_date') ?? ''))
         }}
       >
         <label>
           Schedule date
           <input
             type="date"
+            name="schedule_date"
+            key={date}
             required
-            value={value}
-            onChange={(event) => {
-              setValue(event.target.value)
+            defaultValue={date}
+            onChange={() => {
               setError('')
             }}
           />

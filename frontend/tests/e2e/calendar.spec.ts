@@ -6,6 +6,31 @@ test.beforeEach(async ({ page }) => {
   await mockAPI(page)
 })
 
+test('on-page room back link preserves the selected building calendar day', async ({ page }) => {
+  await page.goto('/?view=buildings&building=SYN-A&schedule_date=2026-10-15')
+  await page.getByRole('link', { name: 'SYN-A-101', exact: true }).click()
+  await page.getByRole('link', { name: /Back to/ }).click()
+  await expect(page).toHaveURL(/schedule_date=2026-10-15/)
+  await expect(page.getByLabel('Schedule date')).toHaveValue('2026-10-15')
+})
+
+test('building controls preserve focus during consecutive keyboard date changes', async ({
+  page,
+}) => {
+  await page.goto('/?view=buildings&building=SYN-A&schedule_date=2026-10-14')
+  const next = page.getByRole('button', { name: 'Next day', exact: true })
+  await next.focus()
+  await page.keyboard.press('Enter')
+  await expect(next).toBeFocused()
+  await expect(page.getByLabel('Schedule date')).toHaveValue('2026-10-15')
+  await page.keyboard.press('Enter')
+  await expect(page.getByLabel('Schedule date')).toHaveValue('2026-10-16')
+  const building = page.getByRole('combobox', { name: 'Building', exact: true })
+  await building.focus()
+  await building.selectOption('SYN-B')
+  await expect(building).toBeFocused()
+})
+
 test('room timeline, scheduled event toggle, interval details and date navigation', async ({
   page,
 }, testInfo) => {

@@ -11,6 +11,7 @@ export interface SearchInput {
 
 export function readLocation(query: string, now = new Date()) {
   const params = new URLSearchParams(query)
+  const view = params.get('view') ?? 'find'
   const rawDuration = params.get('duration') ?? '60'
   const duration = Number(rawDuration)
   const mode = params.get('mode') === 'custom' ? 'custom' : 'now'
@@ -29,7 +30,9 @@ export function readLocation(query: string, now = new Date()) {
       : undefined
   const scheduleDate = params.get('schedule_date') ?? search.date
   let error: string | undefined
-  if (params.has('mode') && !['now', 'custom'].includes(params.get('mode')!))
+  if (!['find', 'buildings'].includes(view))
+    error = 'This page link is invalid. Return to the room search.'
+  else if (params.has('mode') && !['now', 'custom'].includes(params.get('mode')!))
     error = 'Saved search mode is invalid. Choose a new search.'
   else if (!/^\d+$/.test(rawDuration) || duration !== search.duration)
     error = 'Choose a duration between 5 and 240 minutes.'
@@ -46,7 +49,7 @@ export function readLocation(query: string, now = new Date()) {
         error = (cause as Error).message
       }
   }
-  return { search, roomId, scheduleDate, error }
+  return { search, roomId, scheduleDate, error, view }
 }
 
 export function searchParams(search: SearchInput): URLSearchParams {

@@ -107,11 +107,36 @@ class ScheduleMetadata(FreshnessMetadata):
     coverage: CoverageInfo
 
 
+class PublicEventLabel(BaseModel):
+    text: str = Field(min_length=1, max_length=120)
+    authorization: Literal["approved_public"]
+
+
 class MeetingInfo(BaseModel):
     id: int
     starts_at: UTCDateTime
     ends_at: UTCDateTime
     status: Literal["scheduled", "cancelled"]
+    # Reserved for an explicitly authorized future source; ingestion stores no descriptions.
+    public_label: PublicEventLabel | None = None
+
+
+class CoverageWindow(BaseModel):
+    starts_at: UTCDateTime
+    ends_at: UTCDateTime
+    completeness: Literal["complete", "partial", "unknown"]
+
+
+class CalendarPeriod(BaseModel):
+    starts_at: UTCDateTime
+    ends_at: UTCDateTime
+    state: Literal["available", "scheduled", "unknown"]
+
+
+class DayCalendar(BaseModel):
+    window: TimeWindow
+    coverage: list[CoverageWindow]
+    periods: list[CalendarPeriod]
 
 
 class ScheduleResponse(BaseModel):
@@ -120,6 +145,26 @@ class ScheduleResponse(BaseModel):
     query: TimeWindow
     data: list[MeetingInfo]
     meta: ScheduleMetadata
+    calendar: DayCalendar | None = None
+
+
+class BuildingScheduleRoom(BaseModel):
+    room: RoomInfo
+    meetings: list[MeetingInfo]
+    calendar: DayCalendar
+
+
+class BuildingScheduleMetadata(FreshnessMetadata):
+    unknown_room_count: int
+
+
+class BuildingScheduleResponse(BaseModel):
+    building: BuildingInfo
+    date: dt.date
+    query: TimeWindow
+    display_window: TimeWindow
+    data: list[BuildingScheduleRoom]
+    meta: BuildingScheduleMetadata
 
 
 class StatusResponse(FreshnessMetadata):

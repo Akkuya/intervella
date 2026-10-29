@@ -135,6 +135,7 @@ def test_cors_allowlist_and_openapi():
         expected = {
             "/api/v1/availability",
             "/api/v1/buildings",
+            "/api/v1/buildings/{code}/schedule",
             "/api/v1/rooms/{room_id}",
             "/api/v1/rooms/{room_id}/schedule",
             "/api/v1/status",

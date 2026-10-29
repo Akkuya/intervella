@@ -220,6 +220,17 @@ test('unknown room schedule never implies availability and remains accessible', 
       json: {
         ...schedule,
         data: [],
+        calendar: {
+          window: schedule.calendar!.window,
+          coverage: [],
+          periods: [
+            {
+              starts_at: schedule.calendar!.window.start,
+              ends_at: schedule.calendar!.window.end,
+              state: 'unknown',
+            },
+          ],
+        },
         meta: {
           ...schedule.meta,
           coverage: { completeness: 'unknown', starts_at: null, ends_at: null },
@@ -233,6 +244,7 @@ test('unknown room schedule never implies availability and remains accessible', 
     page.getByText('Do not assume this room is available.', { exact: false }),
   ).toBeVisible()
   await expect(page.getByText('Coverage is unknown.', { exact: false })).toBeVisible()
+  await expect(page.locator('.calendar-period.available')).toHaveCount(0)
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
   await page.screenshot({ path: testInfo.outputPath('room.png'), fullPage: true })
 })

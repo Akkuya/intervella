@@ -319,3 +319,69 @@ def test_partial_local_source_excludes_only_uncertain_window(postgres_engine, tm
                 session, start=NOW + timedelta(hours=12), end=NOW + timedelta(hours=13), now=NOW
             )
         assert failure.value.code == "coverage_unavailable"
+
+
+def test_delayed_failure_audit_cannot_corrupt_concurrent_success(
+    postgres_engine, tmp_path, monkeypatch
+):
+    from threading import Event
+
+    from app.ingest import pipeline
+
+    write_bundle(tmp_path, fetched="2026-10-14T11:30:00Z")
+    for path in tmp_path.glob("*.html"):
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "<td>&nbsp;</td>", '<td class="event">Synthetic extra event</td>'
+            ),
+            encoding="utf-8",
+        )
+    busy = import_directory(postgres_engine, tmp_path)["dataset_id"]
+    write_bundle(tmp_path, fetched="2026-10-14T11:45:00Z")
+    candidate = import_directory(postgres_engine, tmp_path)["dataset_id"]
+    publish_dataset(postgres_engine, busy)
+    paused, resume = Event(), Event()
+    original = pipeline._failure
+
+    def delayed_failure(*args):
+        paused.set()
+        assert resume.wait(timeout=10)
+        return original(*args)
+
+    monkeypatch.setattr(pipeline, "_failure", delayed_failure)
+    with ThreadPoolExecutor(max_workers=1) as workers:
+        failed = workers.submit(publish_dataset, postgres_engine, candidate)
+        try:
+            assert paused.wait(timeout=10)
+            assert (
+                publish_dataset(postgres_engine, candidate, review_reason="reviewed-holiday")[
+                    "status"
+                ]
+                == "published"
+            )
+        finally:
+            resume.set()
+        with pytest.raises(IngestionError, match="review_required"):
+            failed.result(timeout=10)
+    assert str(active(postgres_engine)) == candidate
+    with Session(postgres_engine) as session:
+        parent_id = session.get(Dataset, candidate).run_id
+        assert session.get(IngestionRun, parent_id).status == "succeeded"
+        attempt = session.execute(
+            select(IngestionRun).where(IngestionRun.status == "failed")
+        ).scalar_one()
+        assert attempt.counts["related_run_id"] == str(parent_id)
+    assert import_directory(postgres_engine, tmp_path)["status"] == "unchanged"
+
+
+def test_candidate_source_timestamp_is_in_validation_digest(postgres_engine, tmp_path):
+    write_bundle(tmp_path)
+    candidate = import_directory(postgres_engine, tmp_path)["dataset_id"]
+    with postgres_engine.begin() as connection:
+        connection.execute(
+            text("UPDATE utscvacant.datasets SET source_fetched_at=:time WHERE id=:id"),
+            {"time": NOW + timedelta(days=100), "id": candidate},
+        )
+    with pytest.raises(IngestionError, match="candidate_changed"):
+        publish_dataset(postgres_engine, candidate)
+    assert active(postgres_engine) is None

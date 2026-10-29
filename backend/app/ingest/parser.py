@@ -173,7 +173,7 @@ def _strict_building(building):
     if len({room["name"] for room in rooms}) != len(rooms):
         raise ValueError("Duplicate room header")
     if any(
-        header.get("rowspan", "1") != "1" or header.get("colspan", "1") != "1" for header in headers
+        header.get("rowspan", "1") != "1" or header.get("colspan", "1") != "1" for header in columns
     ):
         raise ValueError("Ambiguous room columns")
     rows = [row for row in building.find_all("tr") if row.find_parent("thead") is None]

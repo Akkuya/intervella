@@ -48,10 +48,37 @@ def _failed(
     report: dict | None = None,
 ) -> UUID:
     with Session(engine) as session, session.begin():
+        session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": LOCK_KEY})
+        datasets = (
+            session.execute(
+                select(Dataset)
+                .where(col(Dataset.run_id) == run_id)
+                .order_by(col(Dataset.id))
+                .with_for_update()
+            )
+            .scalars()
+            .all()
+            if run_id
+            else []
+        )
+        published = any(dataset.published_at is not None for dataset in datasets)
         now = datetime.now(UTC)
-        run = session.get(IngestionRun, run_id) if run_id else None
+        run = (
+            session.execute(
+                select(IngestionRun).where(col(IngestionRun.id) == run_id).with_for_update()
+            ).scalar_one_or_none()
+            if run_id and not published
+            else None
+        )
         if run is None:
             run = IngestionRun(started_at=now, input_hash=input_hash)
+            if published:
+                # A competing publisher committed after rollback; preserve its successful parent.
+                run.counts = {
+                    "phase": "publication",
+                    "related_run_id": str(run_id),
+                    "related_dataset_ids": [str(dataset.id) for dataset in datasets],
+                }
         run.status = "failed"
         run.finished_at = max(now, run.started_at)
         run.error_code = code
@@ -74,6 +101,14 @@ def _failure(
 
 
 def _digest(session: Session, dataset_id: UUID) -> str:
+    metadata = session.execute(
+        select(
+            col(Dataset.id),
+            col(Dataset.run_id),
+            col(Dataset.source_fetched_at),
+            col(Dataset.timezone),
+        ).where(col(Dataset.id) == dataset_id)
+    ).one()
     coverage = session.execute(
         select(
             col(RoomCoverage.room_id),
@@ -101,7 +136,7 @@ def _digest(session: Session, dataset_id: UUID) -> str:
         .where(col(Room.id).in_({row.room_id for row in coverage}))
         .order_by(col(Room.id))
     ).all()
-    payload = [[list(row) for row in rows] for rows in [coverage, meetings, identities]]
+    payload = [[list(row) for row in rows] for rows in [[metadata], coverage, meetings, identities]]
     return hashlib.sha256(
         json.dumps(payload, default=str, separators=(",", ":")).encode()
     ).hexdigest()

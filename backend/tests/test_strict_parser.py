@@ -66,6 +66,8 @@ def test_midnight_rowspan_keeps_day_offset():
         ('<th id="blank"></th>', "<th>Unknown column</th><th></th>"),
         ("rfilter=307", "notrfilter=307"),
         ("rfilter=307", "rfilter=307&rfilter=900"),
+        ('<th id="blank"></th>', '<th colspan="2"></th>'),
+        ('<th id="blank"></th>', '<th rowspan="2"></th>'),
     ],
 )
 def test_strict_grid_rejects_unrecognized_markup_and_ambiguous_locators(before, after):

@@ -1,6 +1,8 @@
-# UTSC Room Finder — Scope Document
+# Intervella — Original Scope Document
 
-**Working title:** RoomFinder (UTSC) **One-liner:** Shows which rooms and buildings on campus are free right now, and recommends the best place to study based on where you are and how many people you have.
+> Historical discovery notes. The October 14, 2026 TRD and current README take precedence. References below to possible sources, recommendations, hosting, and adoption are proposals, not implemented features or verified permissions. Public course listings alone do not prove complete room coverage.
+
+**Current name:** Intervella (UTSC) **One-liner:** Shows which rooms and buildings on campus are free right now, and recommends the best place to study based on where you are and how many people you have.
 
 ---
 

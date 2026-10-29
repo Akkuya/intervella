@@ -4,7 +4,7 @@ import type { Building, Freshness, StatusResponse } from './api.ts'
 import { ApiError } from './api.ts'
 import type { SearchInput } from './search.ts'
 import { requestParams } from './search.ts'
-import { campusDate, campusTime, dateLabel, localCandidates } from './time.ts'
+import { campusDate, campusTime, campusTimeLabel, dateLabel, localCandidates } from './time.ts'
 
 export function ErrorPanel({ error, onRetry }: { error: unknown; onRetry: () => void }) {
   return (
@@ -55,12 +55,12 @@ export function FreshnessNote({ meta, status }: { meta: Freshness; status?: Stat
         </span>
         <span>
           {' '}
-          Fetched {dateLabel(meta.source_fetched_at)} at {campusTime(meta.source_fetched_at)}
+          Fetched {dateLabel(meta.source_fetched_at)} at {campusTimeLabel(meta.source_fetched_at)}
         </span>
       </p>
       <p className="small">
-        Last checked {dateLabel(meta.generated_at)} at {campusTime(meta.generated_at)} Toronto time.
-        Source freshness does not guarantee physical vacancy.
+        Last checked {dateLabel(meta.generated_at)} at {campusTimeLabel(meta.generated_at)} Toronto
+        time. Source freshness does not guarantee physical vacancy.
       </p>
     </div>
   )

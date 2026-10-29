@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { campusDate, campusTime, localCandidates, toInstant } from '../../src/time.ts'
+import {
+  campusDate,
+  campusTime,
+  localCandidates,
+  nextBookingLabel,
+  toInstant,
+} from '../../src/time.ts'
 
 test('campus date and time are independent of device timezone', () => {
   assert.equal(campusDate('2026-10-15T02:30:00Z'), '2026-10-14')
@@ -33,4 +39,16 @@ test('impossible dates and malformed times are rejected', () => {
   ]) {
     assert.throws(() => toInstant(date, time))
   }
+})
+
+test('displayed bookings distinguish both occurrences of a repeated hour', () => {
+  assert.equal(nextBookingLabel('2026-11-01T05:30:00Z', '2026-11-01T04:00:00Z'), '01:30 GMT-04:00')
+  assert.equal(nextBookingLabel('2026-11-01T06:30:00Z', '2026-11-01T04:00:00Z'), '01:30 GMT-05:00')
+})
+
+test('overnight endpoint labels include their campus date and offset', () => {
+  assert.match(
+    nextBookingLabel('2026-10-15T04:30:00Z', '2026-10-15T03:30:00Z'),
+    /Oct 15, 2026.*00:30 GMT-04:00/,
+  )
 })

@@ -24,6 +24,14 @@ function parts(value: string | Date) {
 
 export const campusDate = (value: string | Date) => parts(value).date
 export const campusTime = (value: string | Date) => parts(value).time
+const timeLabelFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: CAMPUS_ZONE,
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+  timeZoneName: 'longOffset',
+})
+export const campusTimeLabel = (value: string | Date) => timeLabelFormatter.format(new Date(value))
 export const dateLabel = (value: string | Date) =>
   new Intl.DateTimeFormat('en-CA', {
     timeZone: CAMPUS_ZONE,
@@ -88,5 +96,5 @@ export function toInstant(date: string, time: string, offset = ''): string {
 }
 
 export function nextBookingLabel(value: string, searchStart: string) {
-  return `${campusDate(value) !== campusDate(searchStart) ? `${dateLabel(value)} · ` : ''}${campusTime(value)}`
+  return `${campusDate(value) !== campusDate(searchStart) ? `${dateLabel(value)} · ` : ''}${campusTimeLabel(value)}`
 }

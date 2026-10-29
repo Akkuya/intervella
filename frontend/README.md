@@ -39,6 +39,7 @@ On macOS/Linux, use `npm` instead of `npm.cmd` and adjust the checkout path.
 
 - **Free now** sends the current UTC instant and refreshes every 60 seconds while the tab is visible. Returning to the tab can refresh a Now query.
 - **Choose a time** interprets date/time in `America/Toronto`, independently of device timezone. Nonexistent DST times are rejected; repeated times require choosing the first/second occurrence and explicit offset.
+- Displayed times include their UTC offset, and overnight search windows include the end date so repeated hours and midnight crossings remain unambiguous.
 - Duration is 5..240 minutes; building is optional. Availability, filtering, ordering, limits, coverage, and next booking are decided by FastAPI, not the browser.
 - Results show the API's search window, room, nullable capacity, next scheduled booking, freshness, last-check time, and count excluded for incomplete coverage. A null next booking means no later booking is known, not unlimited availability.
 - Room links open room details and a Toronto calendar-day schedule, including cancellations and explicit partial/unknown coverage warnings. An empty schedule is never labelled available.

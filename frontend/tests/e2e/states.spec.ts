@@ -6,6 +6,41 @@ test.beforeEach(async ({ page }) => {
   await mockAPI(page)
 })
 
+for (const url of ['/', '/?mode=custom&date=2026-10-14&time=09%3A00']) {
+  test(`explicit unchanged search refetches while normalizing ${url}`, async ({ page }) => {
+    let requests = 0
+    page.on('request', (request) => {
+      if (request.url().includes('/availability')) requests++
+    })
+    await page.goto(url)
+    await expect(page.getByRole('link', { name: 'View SYN-A 101' })).toBeVisible()
+    await page.waitForLoadState('networkidle')
+    const before = requests
+    await page.getByRole('button', { name: 'Find rooms' }).click()
+    await expect.poll(() => requests, { timeout: 1500 }).toBeGreaterThan(before)
+  })
+}
+
+test('search windows distinguish repeated times and overnight end dates', async ({
+  page,
+}, testInfo) => {
+  let query = { ...available.query, start: '2026-11-01T05:30:00Z', end: '2026-11-01T06:30:00Z' }
+  await page.route('**/api/v1/availability*', (route) =>
+    route.fulfill({ json: { ...available, query } }),
+  )
+  await page.goto('/?mode=custom&date=2026-11-01&time=01%3A30&offset=-04%3A00')
+  await expect(page.locator('.time-strip')).toContainText('01:30 GMT-04:00')
+  await expect(page.locator('.time-strip')).toContainText('01:30 GMT-05:00')
+  query = { ...query, start: '2026-10-15T03:30:00Z', end: '2026-10-15T04:30:00Z' }
+  await page.goto('/?mode=custom&date=2026-10-14&time=23%3A30')
+  await expect(page.locator('.time-strip strong')).toContainText('Oct 15, 2026')
+  await expect(page.locator('.time-strip strong')).toContainText('00:30 GMT-04:00')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(
+    false,
+  )
+  await page.locator('.time-strip').screenshot({ path: testInfo.outputPath('overnight.png') })
+})
+
 test('service connection failure is distinct from browser offline', async ({ page }) => {
   await page.route('**/api/v1/availability*', (route) => route.abort('failed'))
   await page.goto('/')

@@ -6,7 +6,7 @@ import { ErrorPanel, FreshnessNote, OfflinePanel, SearchForm } from './component
 import { navigate, routeClick, useLocationSearch, useOnline } from './navigation.ts'
 import { readLocation, requestParams, searchParams } from './search.ts'
 import type { SearchInput } from './search.ts'
-import { campusTime, dateLabel, validDate, nextBookingLabel } from './time.ts'
+import { campusTimeLabel, dateLabel, validDate, nextBookingLabel } from './time.ts'
 import './App.css'
 
 function Results({
@@ -23,8 +23,9 @@ function Results({
       <div className="time-strip">
         <span className="eyebrow">Search window · Toronto</span>
         <strong className="tabular-nums">
-          {campusTime(result.query.start)} <span aria-hidden="true">—</span>
-          <span className="sr-only"> to </span> {campusTime(result.query.end)}
+          {campusTimeLabel(result.query.start)} <span aria-hidden="true">—</span>
+          <span className="sr-only"> to </span>{' '}
+          {nextBookingLabel(result.query.end, result.query.start)}
         </strong>
         <span>{dateLabel(result.query.start)}</span>
       </div>
@@ -212,8 +213,9 @@ function RoomDetails({
             ) : (
               <>
                 <p className="schedule-date" role="status">
-                  {dateLabel(schedule.data.query.start)} · {campusTime(schedule.data.query.start)}{' '}
-                  to {campusTime(schedule.data.query.end)} next midnight
+                  {dateLabel(schedule.data.query.start)} ·{' '}
+                  {campusTimeLabel(schedule.data.query.start)} to{' '}
+                  {nextBookingLabel(schedule.data.query.end, schedule.data.query.start)}
                 </p>
                 <FreshnessNote meta={schedule.data.meta} status={status} />
                 {schedule.data.meta.coverage.completeness !== 'complete' && (
@@ -301,7 +303,10 @@ export default function App() {
     previous.current = { room: location.roomId, date: location.scheduleDate }
   }, [location.roomId, location.scheduleDate])
   const onSearch = (input: SearchInput) => {
-    if (!navigate(searchParams(input))) void result.refetch()
+    const params = searchParams(input)
+    const unchanged = params.toString() === searchParams(location.search).toString()
+    navigate(params)
+    if (unchanged) void result.refetch()
     document.getElementById('results-title')?.focus()
   }
   return (
@@ -376,7 +381,7 @@ export default function App() {
                 </strong>
                 <span>
                   {status.data?.period
-                    ? `Source window: ${dateLabel(status.data.period.start)} at ${campusTime(status.data.period.start)} until ${dateLabel(status.data.period.end)} at ${campusTime(status.data.period.end)}`
+                    ? `Source window: ${dateLabel(status.data.period.start)} at ${campusTimeLabel(status.data.period.start)} until ${dateLabel(status.data.period.end)} at ${campusTimeLabel(status.data.period.end)}`
                     : 'A published schedule is needed to confirm coverage.'}
                 </span>
                 <a href="#data-note">Read the data notice ↑</a>

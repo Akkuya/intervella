@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
-from sqlalchemy import Engine, func, select, text
+from sqlalchemy import Engine, func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import Session, col
 
@@ -405,6 +405,14 @@ def publish_dataset(
             )
             if anomalies and not (reason or saved_reason):
                 raise IngestionError("review_required", report={"publication_anomalies": anomalies})
+            inventory = select(col(RoomCoverage.room_id)).where(
+                col(RoomCoverage.dataset_id) == dataset.id
+            )
+            session.execute(
+                update(Room)
+                .where(col(Room.active).is_(True), col(Room.id).not_in(inventory))
+                .values(active=False)
+            )
             for room_record in counts["room_records"]:
                 building = session.execute(
                     select(Building).where(col(Building.code) == room_record["building_code"])

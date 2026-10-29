@@ -44,32 +44,26 @@ export function readLocation(query: string, now = new Date()) {
   let error: string | undefined
   if (!['find', 'buildings', 'saved'].includes(view))
     error = 'This page link is invalid. Return to the room search.'
-  else if (params.has('mode') && !['now', 'custom'].includes(params.get('mode')!))
-    error = 'Saved search mode is invalid. Choose a new search.'
-  else if (!/^\d+$/.test(rawDuration) || duration !== search.duration)
-    error = 'Choose a duration between 5 and 240 minutes.'
   else if (room !== null && roomId === undefined)
     error = 'This room link is invalid. Return to the room search.'
   else if (!validDate(scheduleDate)) error = 'Choose a valid schedule date.'
-  else if (!['building', 'room', 'duration'].includes(search.sort!))
-    error = 'Choose a valid sort order.'
-  else if (params.has('include_next') && !['0', '1'].includes(params.get('include_next')!))
-    error = 'Choose a valid next-opening option.'
-  else if (search.mode === 'custom') {
-    if (!params.has('date') || !params.has('time'))
+  if (!error && roomId === undefined && view !== 'buildings') {
+    if (params.has('mode') && !['now', 'custom'].includes(params.get('mode')!))
+      error = 'Saved search mode is invalid. Choose a new search.'
+    else if (!/^\d+$/.test(rawDuration) || duration !== search.duration)
+      error = 'Choose a duration between 5 and 240 minutes.'
+    else if (!['building', 'room', 'duration'].includes(search.sort!))
+      error = 'Choose a valid sort order.'
+    else if (params.has('include_next') && !['0', '1'].includes(params.get('include_next')!))
+      error = 'Choose a valid next-opening option.'
+    else if (search.mode === 'custom' && (!params.has('date') || !params.has('time')))
       error = 'The saved search needs a date and time.'
-    else
+    if (!error) {
       try {
-        toInstant(search.date, search.time, search.offset)
+        requestParams(search, now)
       } catch (cause) {
         error = (cause as Error).message
       }
-  }
-  if (!error) {
-    try {
-      requestParams(search, now)
-    } catch (cause) {
-      error = (cause as Error).message
     }
   }
   return { search, roomId, scheduleDate, error, view }

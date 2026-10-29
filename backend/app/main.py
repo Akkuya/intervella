@@ -208,10 +208,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     ) -> RoomSearchResponse:
         from app.services.room_search import search_rooms
 
-        if "limit" not in request.query_params:
-            query.limit = min(query.limit, config.max_availability_limit)
-        if query.limit > config.max_availability_limit:
-            raise APIError(422, "invalid_request", "Result limit exceeds server limit.", ["limit"])
+        if not query.room_ids:
+            if "limit" not in request.query_params:
+                query.limit = min(query.limit, config.max_availability_limit)
+            if query.limit > config.max_availability_limit:
+                raise APIError(
+                    422, "invalid_request", "Result limit exceeds server limit.", ["limit"]
+                )
         result = search_rooms(session, query, now, config.freshness_max_age_hours)
         request.state.dataset_id = str(result.meta.dataset_id)
         return result

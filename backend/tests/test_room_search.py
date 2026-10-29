@@ -65,6 +65,7 @@ def test_until_boundary_next_opening_and_normalized_name(client, postgres_engine
         {"sort": "SQL"},
         {"room_ids": [0]},
         {"room_ids": list(range(1, 102))},
+        {"room_ids": [1, 2], "limit": 1},
         {"room_name": "%"},
         {"building": "NOPE"},
     ],
@@ -228,3 +229,14 @@ def test_search_scale_batches_and_payload_limits(client, postgres_engine, tmp_pa
     assert len(selects) <= 6
     monkeypatch.setattr(room_search, "MAX_RECORDS", 1)
     assert search(client).json()["error"]["code"] == "search_too_large"
+
+
+@pytest.mark.postgres
+def test_saved_id_batch_is_complete_below_configured_search_limit(client, postgres_engine):
+    make_schedule(postgres_engine)
+    client.app.state.settings = Settings(max_availability_limit=1)
+    body = search(client, room_ids=[1, 2, 7, 999]).json()
+    assert [room["room_id"] for room in body["data"]] == [1, 2, 7]
+    assert body["meta"]["missing_room_ids"] == [999]
+    assert body["meta"]["has_more"] is False
+    assert len(search(client).json()["data"]) == 1

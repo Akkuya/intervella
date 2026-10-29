@@ -6,6 +6,61 @@ test.beforeEach(async ({ page }) => {
   await mockAPI(page)
 })
 
+test('expired until searches leave room and building calendar navigation usable', async ({
+  page,
+}) => {
+  await page.goto('/?mode=now&end_date=2026-10-14&end_time=08%3A10&room=1&schedule_date=2026-10-14')
+  await expect(page.getByRole('heading', { name: 'SYN-A-101', exact: true })).toBeVisible()
+  await page.clock.fastForward(6 * 60_000)
+  await expect(page.getByRole('heading', { name: 'SYN-A-101', exact: true })).toBeVisible()
+  await page.getByRole('link', { name: 'Building schedules', exact: true }).click()
+  await expect(page.getByRole('region', { name: 'Day calendar' })).toBeVisible()
+  await page.getByRole('button', { name: 'Next day', exact: true }).click()
+  await expect(page.getByLabel('Schedule date')).toHaveValue('2026-10-15')
+})
+
+test('saved now results refresh on visibility return after a booking boundary', async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem('utscvacant.favourites', JSON.stringify({ rooms: [1], buildings: [] })),
+  )
+  await page.goto('/?view=saved')
+  await expect(page.getByRole('article', { name: 'SYN-A-101' })).toContainText('Schedule available')
+  await page.evaluate(() =>
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true }),
+  )
+  await page.clock.setSystemTime(new Date('2026-10-14T13:05:00Z'))
+  await page.route('**/api/v1/room-search*', (route) =>
+    route.fulfill({
+      json: {
+        ...available,
+        data: [
+          {
+            ...available.data[0],
+            state: 'scheduled',
+            available_until: null,
+            next_available_start: '2026-10-14T14:00:00Z',
+          },
+        ],
+      },
+    }),
+  )
+  const refreshed = page.waitForRequest(
+    (item) =>
+      item.url().includes('/room-search') &&
+      Date.parse(new URL(item.url()).searchParams.get('start')!) >=
+        Date.parse('2026-10-14T13:05:00Z'),
+    { timeout: 2500 },
+  )
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+    window.dispatchEvent(new Event('visibilitychange'))
+  })
+  await refreshed
+  await expect(page.getByRole('article', { name: 'SYN-A-101' })).toContainText('Scheduled conflict')
+})
+
 test('until, normalized name and sorting are shared in URLs and checked by the API', async ({
   page,
 }, testInfo) => {

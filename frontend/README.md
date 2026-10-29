@@ -130,3 +130,5 @@ npm.cmd run test:e2e
 ```
 
 Backend verification remains `uv run pytest --require-postgres`, Ruff and mypy using a disposable test database (see the backend guide). No development clock override or live-campus demo fallback was added. The immutable synthetic seed remains fixed in time; controlled test fixtures exercise the current API separately.
+
+Calendar navigation remains valid when a retained Now/until search expires. The room back link retains the selected building-calendar day, and building controls keep focus during date/building changes. Saved Now checks refresh on visibility return and reconnect, matching Find a room; fixed-time checks refresh when the published dataset changes.

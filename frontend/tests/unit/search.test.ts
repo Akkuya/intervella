@@ -2,6 +2,16 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readLocation, searchParams, requestParams } from '../../src/search.ts'
 
+test('an expired search does not invalidate independent room and building calendars', () => {
+  const query = '?mode=now&end_date=2026-10-14&end_time=09%3A00&schedule_date=2026-10-15'
+  const later = new Date('2026-10-14T12:56:00Z')
+  assert.equal(readLocation(query, new Date('2026-10-14T12:50:00Z')).error, undefined)
+  assert.ok(readLocation(query, later).error)
+  assert.equal(readLocation(query + '&view=buildings&building=SYN-A', later).error, undefined)
+  assert.equal(readLocation(query + '&room=1', later).error, undefined)
+  assert.ok(readLocation('?view=buildings&schedule_date=bad', later).error)
+})
+
 const now = new Date('2026-10-14T12:00:00Z')
 
 test('default search is current time, not a hardcoded demo date', () => {

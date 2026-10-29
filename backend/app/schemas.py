@@ -62,6 +62,8 @@ class RoomSearchParams(BaseModel):
 
     @model_validator(mode="after")
     def interval(self):
+        if self.room_ids and self.limit != 100:
+            raise ValueError("Saved ID batches always return the entire bounded batch")
         if self.room_ids and (self.building or self.room_name):
             raise ValueError("Saved room batches cannot also filter inventory")
         if self.end is not None and self.duration_minutes is not None:

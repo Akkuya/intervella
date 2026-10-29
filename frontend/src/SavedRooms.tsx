@@ -43,6 +43,8 @@ export function SavedRooms({
     staleTime: location.search.mode === 'now' ? 0 : Infinity,
     refetchInterval: location.search.mode === 'now' ? 60_000 : false,
     refetchIntervalInBackground: false,
+    refetchOnWindowFocus: location.search.mode === 'now',
+    refetchOnReconnect: location.search.mode === 'now',
   })
   const find = new URLSearchParams(query)
   find.delete('view')

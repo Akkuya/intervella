@@ -110,11 +110,11 @@ function RoomDetails({
   const details = schedule.data?.room ?? room.data?.data
   const back = new URLSearchParams(query)
   back.delete('room')
-  back.delete('schedule_date')
+  if (back.get('view') !== 'buildings') back.delete('schedule_date')
   return (
     <section className="room-detail" aria-labelledby="room-title">
       <a className="back-link" href={`?${back}`} onClick={(event) => routeClick(event, back)}>
-        ← Back to results
+        ← {back.get('view') === 'buildings' ? 'Back to building schedules' : 'Back to results'}
       </a>
       <div className="detail-heading">
         <span className="eyebrow">Room details</span>
@@ -338,7 +338,6 @@ export default function App() {
           />
         ) : location.view === 'buildings' ? (
           <BuildingSchedules
-            key={query}
             query={query}
             buildings={buildings.data?.data ?? []}
             status={status.data}

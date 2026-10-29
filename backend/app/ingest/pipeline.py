@@ -372,7 +372,10 @@ def publish_dataset(
             ).scalar_one()
             input_hash = run.input_hash
             counts = run.counts
-            if run.status != "succeeded" or counts.get("parser_version") != PARSER_VERSION:
+            if run.status != "succeeded" or counts.get("parser_version") not in {
+                "local-grid-v1",
+                PARSER_VERSION,
+            }:
                 raise IngestionError("candidate_not_validated")
             if counts.get("candidate_digest") != _digest(session, dataset.id):
                 raise IngestionError("candidate_changed")

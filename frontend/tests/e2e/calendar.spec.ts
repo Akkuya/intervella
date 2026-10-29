@@ -1,3 +1,4 @@
+import { choose, selectTrigger } from './control-helpers.ts'
 import { test, expect } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 import { mockAPI, schedule, room, meta } from './fixtures.ts'
@@ -11,7 +12,9 @@ test('on-page room back link preserves the selected building calendar day', asyn
   await page.getByRole('link', { name: 'SYN-A-101', exact: true }).click()
   await page.getByRole('link', { name: /Back to/ }).click()
   await expect(page).toHaveURL(/schedule_date=2026-10-15/)
-  await expect(page.getByLabel('Schedule date')).toHaveValue('2026-10-15')
+  await expect(
+    page.getByRole('button', { name: /^Schedule date: / }).locator('time'),
+  ).toHaveAttribute('datetime', '2026-10-15')
 })
 
 test('building controls preserve focus during consecutive keyboard date changes', async ({
@@ -22,12 +25,16 @@ test('building controls preserve focus during consecutive keyboard date changes'
   await next.focus()
   await page.keyboard.press('Enter')
   await expect(next).toBeFocused()
-  await expect(page.getByLabel('Schedule date')).toHaveValue('2026-10-15')
+  await expect(
+    page.getByRole('button', { name: /^Schedule date: / }).locator('time'),
+  ).toHaveAttribute('datetime', '2026-10-15')
   await page.keyboard.press('Enter')
-  await expect(page.getByLabel('Schedule date')).toHaveValue('2026-10-16')
-  const building = page.getByRole('combobox', { name: 'Building', exact: true })
+  await expect(
+    page.getByRole('button', { name: /^Schedule date: / }).locator('time'),
+  ).toHaveAttribute('datetime', '2026-10-16')
+  const building = selectTrigger(page, 'Building')
   await building.focus()
-  await building.selectOption('SYN-B')
+  await choose(page, 'Building', 'SYN-B')
   await expect(building).toBeFocused()
 })
 

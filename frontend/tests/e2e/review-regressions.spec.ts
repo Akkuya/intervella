@@ -1,3 +1,4 @@
+import { choose } from './control-helpers.ts'
 import { test, expect } from '@playwright/test'
 import { mockAPI, available, NOW } from './fixtures.ts'
 
@@ -140,9 +141,7 @@ for (const view of ['find', 'saved']) {
           ).toBeGreaterThanOrEqual(5 * 60_000)
       }
       await page.getByRole('link', { name: 'Find a room', exact: true }).click()
-      await page
-        .getByRole('combobox', { name: 'Search length', exact: true })
-        .selectOption('duration')
+      await choose(page, 'Search length', 'duration')
       await page.getByRole('button', { name: 'Find rooms' }).click()
       await expect(page.getByRole('article')).toHaveCount(1)
       await expect(

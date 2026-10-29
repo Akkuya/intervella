@@ -1,3 +1,5 @@
+import { Select, DatePicker, TimePicker } from './Controls.tsx'
+import { endSuggestions } from './picker-time.ts'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import type { Building, Freshness, StatusResponse } from './api.ts'
@@ -12,6 +14,7 @@ import {
   dateLabel,
   localCandidates,
   zoneLabel,
+  toInstant,
 } from './time.ts'
 import { Button, Badge } from './ui.tsx'
 
@@ -113,6 +116,16 @@ export function SearchForm({
 }) {
   const [value, setValue] = useState(initial)
   const [error, setError] = useState('')
+  let startInstant: string | undefined
+  try {
+    startInstant =
+      value.mode === 'now'
+        ? new Date().toISOString()
+        : toInstant(value.date, value.time, value.offset)
+  } catch {
+    /* Require a valid start/occurrence before suggesting an end. */
+  }
+  const suggestions = endSuggestions(startInstant)
   let candidates: ReturnType<typeof localCandidates> = []
   let endCandidates: ReturnType<typeof localCandidates> = []
   if (value.endDate && value.endTime) {
@@ -177,7 +190,7 @@ export function SearchForm({
             value="custom"
             checked={value.mode === 'custom'}
             onChange={() => {
-              const now = new Date()
+              const now = new Date(Math.round(Date.now() / 300_000) * 300_000)
               update({ mode: 'custom', date: campusDate(now), time: campusTime(now), offset: '' })
             }}
           />
@@ -189,35 +202,31 @@ export function SearchForm({
           <div className="field-row">
             <label>
               Date
-              <input
-                name="date"
-                type="date"
+              <DatePicker
+                label="Date"
                 value={value.date}
-                required
-                aria-describedby="timezone-help search-error"
-                onChange={(event) => update({ date: event.target.value, offset: '' })}
+                onChange={(selection) => update({ date: selection, offset: '' })}
               />
             </label>
             <label>
               Start time
-              <input
-                name="time"
-                type="time"
+              <TimePicker
+                label="Start time"
                 value={value.time}
-                required
-                aria-describedby="timezone-help search-error"
-                onChange={(event) => update({ time: event.target.value, offset: '' })}
+                date={value.date}
+                onChange={(selection) => update({ time: selection, offset: '' })}
               />
             </label>
           </div>
           {candidates.length > 1 && (
             <label>
               Time occurrence
-              <select
+              <Select
+                label="Time occurrence"
                 name="offset"
                 value={value.offset}
                 aria-describedby="search-error"
-                onChange={(event) => update({ offset: event.target.value })}
+                onChange={(selection) => update({ offset: selection })}
               >
                 <option value="">Choose an occurrence</option>
                 {candidates.map((candidate, i) => (
@@ -225,7 +234,7 @@ export function SearchForm({
                     {i === 0 ? 'First' : 'Second'} occurrence ({zoneLabel(candidate.instant)})
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
           )}
         </>
@@ -239,11 +248,12 @@ export function SearchForm({
       </p>
       <label>
         Search length
-        <select
+        <Select
+          label="Search length"
           value={value.endDate !== undefined ? 'until' : 'duration'}
-          onChange={(event) =>
+          onChange={(selection) =>
             update(
-              event.target.value === 'until'
+              selection === 'until'
                 ? { endDate: value.date, endTime: '', endOffset: '' }
                 : { endDate: undefined, endTime: undefined, endOffset: undefined },
             )
@@ -251,36 +261,45 @@ export function SearchForm({
         >
           <option value="duration">Duration</option>
           <option value="until">Available until</option>
-        </select>
+        </Select>
       </label>
       {value.endDate !== undefined ? (
         <>
           <div className="field-row">
             <label>
               End date
-              <input
-                type="date"
-                required
+              <DatePicker
+                label="End date"
                 value={value.endDate}
-                onChange={(event) => update({ endDate: event.target.value, endOffset: '' })}
+                onChange={(selection) => update({ endDate: selection, endOffset: '' })}
               />
             </label>
             <label>
               Available until
-              <input
-                type="time"
-                required
+              <TimePicker
+                label="Available until"
                 value={value.endTime ?? ''}
-                onChange={(event) => update({ endTime: event.target.value, endOffset: '' })}
+                date={value.endDate ?? ''}
+                start={startInstant}
+                suggestions={suggestions}
+                onSuggestion={(suggestion) =>
+                  update({
+                    endDate: suggestion.date,
+                    endTime: suggestion.time,
+                    endOffset: suggestion.offset,
+                  })
+                }
+                onChange={(selection) => update({ endTime: selection, endOffset: '' })}
               />
             </label>
           </div>
           {endCandidates.length > 1 && (
             <label>
               End time occurrence
-              <select
+              <Select
+                label="End time occurrence"
                 value={value.endOffset ?? ''}
-                onChange={(event) => update({ endOffset: event.target.value })}
+                onChange={(selection) => update({ endOffset: selection })}
               >
                 <option value="">Choose an occurrence</option>
                 {endCandidates.map((candidate, index) => (
@@ -288,7 +307,7 @@ export function SearchForm({
                     {index === 0 ? 'First' : 'Second'} occurrence ({zoneLabel(candidate.instant)})
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
           )}
           <p className="small">
@@ -299,23 +318,25 @@ export function SearchForm({
       ) : (
         <label>
           Duration
-          <select
+          <Select
+            label="Duration"
             value={value.duration}
-            onChange={(event) => update({ duration: Number(event.target.value) })}
+            onChange={(selection) => update({ duration: Number(selection) })}
           >
             {durations.map((minutes) => (
               <option key={minutes} value={minutes}>
                 {minutes} minutes
               </option>
             ))}
-          </select>
+          </Select>
         </label>
       )}
       <label>
         Building
-        <select
+        <Select
+          label="Building"
           value={value.building}
-          onChange={(event) => update({ building: event.target.value })}
+          onChange={(selection) => update({ building: selection })}
         >
           <option value="">All buildings</option>
           {unknownBuilding && (
@@ -326,7 +347,7 @@ export function SearchForm({
               {building.code} · {building.name}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
       {buildingsError && (
         <p className="small">Building list unavailable. You can still search all buildings.</p>
@@ -343,14 +364,15 @@ export function SearchForm({
       </label>
       <label>
         Sort rooms
-        <select
+        <Select
+          label="Sort rooms"
           value={value.sort ?? 'building'}
-          onChange={(event) => update({ sort: event.target.value as SearchInput['sort'] })}
+          onChange={(selection) => update({ sort: selection as SearchInput['sort'] })}
         >
           <option value="building">Building, then room</option>
           <option value="room">Room number</option>
           <option value="duration">Longest known availability</option>
-        </select>
+        </Select>
       </label>
       <label className="toggle-control">
         <input

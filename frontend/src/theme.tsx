@@ -1,3 +1,4 @@
+import { Select } from './Controls.tsx'
 import { useEffect, useState } from 'react'
 import { THEME_KEY, themeChoice } from './preferences.ts'
 import type { Theme } from './preferences.ts'
@@ -31,10 +32,11 @@ export function ThemeControl() {
   return (
     <label className="appearance-control">
       Appearance
-      <select
+      <Select
+        label="Appearance"
         value={choice}
-        onChange={(event) => {
-          const next = themeChoice(event.target.value)
+        onChange={(selection) => {
+          const next = themeChoice(selection)
           setChoice(next)
           try {
             localStorage.setItem(THEME_KEY, next)
@@ -46,7 +48,7 @@ export function ThemeControl() {
         <option value="system">System</option>
         <option value="light">Light</option>
         <option value="dark">Dark</option>
-      </select>
+      </Select>
     </label>
   )
 }

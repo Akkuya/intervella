@@ -1,75 +1,91 @@
-# React + TypeScript + Vite
+# UTSCVacant frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A mobile-first React application for the existing FastAPI availability API. The October 14, 2026 TRD governs coverage, freshness, timezone, and frontend behavior.
 
-Currently, two official plugins are available:
+## Data notice
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Every view displays **Unverified / demo data**. The current API has no source-provenance field, so this frontend never certifies current campus availability. The fixed synthetic seed is not live campus data. There is no hidden demo fallback, production clock override, database client, authentication, scraping, map, recommendation engine, or service worker.
 
-## React Compiler
+A future ingestion/provenance milestone must establish authorized source coverage before this notice can be replaced. Empty meetings and unknown next bookings never establish availability.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Local development (PowerShell)
 
-## Expanding the ESLint configuration
+Requirements: Node 22.18+ and npm. Backend/database setup remains in [backend/README.md](../backend/README.md#postgresql-foundation).
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+Start the existing backend in one terminal:
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```powershell
+Set-Location C:/Dev/utscVacant/.worktrees/react-frontend/backend
+uv sync --locked
+$env:DATABASE_URL = 'postgresql+psycopg://postgres@127.0.0.1:55433/utscvacant_dev'
+uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
+This example uses the disposable local PostgreSQL container from the backend guide. Create/migrate the database first if necessary. Never put real database URLs or credentials in frontend variables.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Start the frontend in another terminal:
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```powershell
+Set-Location C:/Dev/utscVacant/.worktrees/react-frontend/frontend
+npm.cmd ci
+npm.cmd run dev -- --port 5173
 ```
+
+Open <http://127.0.0.1:5173>. Vite proxies `/api` to `http://127.0.0.1:8000`; the browser uses same-origin public REST calls with credentials omitted. No CORS workaround, privileged browser key, or direct PostgreSQL connection is needed.
+
+On macOS/Linux, use `npm` instead of `npm.cmd` and adjust the checkout path.
+
+## Search and navigation
+
+- **Free now** sends the current UTC instant and refreshes every 60 seconds while the tab is visible. Returning to the tab can refresh a Now query.
+- **Choose a time** interprets date/time in `America/Toronto`, independently of device timezone. Nonexistent DST times are rejected; repeated times require choosing the first/second occurrence and explicit offset.
+- Displayed times include their UTC offset, and overnight search windows include the end date so repeated hours and midnight crossings remain unambiguous.
+- Duration is 5..240 minutes; building is optional. Availability, filtering, ordering, limits, coverage, and next booking are decided by FastAPI, not the browser.
+- Results show the API's search window, room, nullable capacity, next scheduled booking, freshness, last-check time, and count excluded for incomplete coverage. A null next booking means no later booking is known, not unlimited availability.
+- Room links open room details and a Toronto calendar-day schedule, including cancellations and explicit partial/unknown coverage warnings. An empty schedule is never labelled available.
+- Search parameters are bookmarkable: `mode`, custom `date`, `time`, optional DST `offset`, `duration`, and `building`. `room` and `schedule_date` identify room views. Back/forward restores URL state and room-link focus. A Now bookmark intentionally means now when reopened; it does not freeze a timestamp.
+- Fixed searches refresh only on explicit action or a detected dataset change. Status is checked every 60 seconds while visible; dataset IDs form query keys. Freshness labels use newer server metadata only for the same dataset.
+- Fetch cancellation and query keys prevent old responses replacing newer searches. Offline/errors suppress current availability claims. Loading, valid empty results, unavailable coverage, stale results, malformed links, service errors, and offline state have distinct messages.
+
+Example fixed-time URL (the API still enforces its rolling 30-day window):
+
+```text
+/?mode=custom&date=2026-11-01&time=01%3A30&offset=-05%3A00&duration=90&building=SYN-A
+```
+
+## Tests and production build
+
+```powershell
+npm.cmd ci
+npx.cmd playwright install chromium
+npm.cmd test
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run typecheck
+npm.cmd run build
+npm.cmd run test:e2e
+npm.cmd audit --audit-level=high
+```
+
+Build before E2E tests: Playwright launches Vite preview of the production build on loopback port 4173. Tests run on desktop Chromium and mobile Chromium emulation with a device timezone different from Toronto. Node's native TypeScript runner covers conversion, bookmarks, endpoint identity, cancellation, safe errors, and malformed responses. Browser checks cover real UI actions, race handling, offline recovery, source freshness, coverage, keyboard/focus, URL navigation, and DST selection. Axe scans check search and room views; screenshots are captured for visual review.
+
+Browser fixtures in `tests/e2e` are explicitly synthetic and never imported by production code. The fixed backend seed deliberately remains on October 14, 2026. Once that date is outside the rolling search window, a real request against that seed returns an honest API error; the frontend does not fake a current response. Fixture tests provide repeatable UI coverage without changing production time. A separate manual full-stack smoke check also verified the built React application through the same-origin proxy against real FastAPI, migrated PostgreSQL, and the original synthetic seed using isolated test clocks/data.
+
+To inspect the synthetic browser flow locally:
+
+```powershell
+npm.cmd run build
+npm.cmd run test:e2e -- --project=desktop --headed
+```
+
+The CI workflow runs locked install, lint, formatting, strict TypeScript, unit tests, build, audit, and desktop/mobile browser checks. Screenshot/trace artifacts are retained for seven days. Pixel comparisons, physical devices, and manual screen-reader verification are not claimed.
+
+## Production hosting and implementation notes
+
+Serve `dist/` at the site root and reverse-proxy `/api` to FastAPI on the same origin. Vite preview is a local verification server, not the deployment solution. Use HTTPS in deployment and keep all database credentials in backend secret storage. Do not use a `VITE_` variable for a secret.
+
+The client in `src/api.ts` mirrors the public Pydantic responses in `backend/app/schemas.py` and validates network payload shapes. Room responses must match the requested room/date. React escapes text; the UI never injects backend HTML or reflects raw backend errors. Requests use AbortSignal, no-cache, and omitted credentials. There is no persisted availability cache or offline service worker.
+
+Installed React/TanStack Query and Tailwind are reused. Native History/URLSearchParams and Intl handle navigation and Toronto time. No router or date-library dependency is introduced. Playwright, axe, and Prettier are development tools. Unused PWA tooling was removed to avoid an unimplemented caching surface; scoped non-breaking patches resolved the original development-tool advisories.
+
+Authorized ingestion, provenance, production deployment/TLS/role checks, and broader real-device/browser testing remain future work.

@@ -229,3 +229,18 @@ test('daily import, missing files, and recoverable preview failure', async ({ pa
     .click()
   await expect(page.getByRole('heading', { name: '4. Validation & comparison' })).toBeVisible()
 })
+
+test('expired authorization returns to login without retaining private dashboard state', async ({
+  page,
+}) => {
+  await setup(page)
+  await expect(page.getByRole('heading', { name: 'Recent import findings' })).toBeVisible()
+  await page.route('**/ops/health', (route) =>
+    route.fulfill({ status: 401, json: { error: { code: 'authentication_required' } } }),
+  )
+  await page.getByRole('button', { name: 'Refresh health', exact: true }).click()
+  await expect(
+    page.getByRole('button', { name: 'Unlock private dashboard', exact: true }),
+  ).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Data health & publication' })).toHaveCount(0)
+})

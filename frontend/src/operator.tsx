@@ -95,6 +95,14 @@ export default function Operator() {
       await action()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Request failed')
+      if (e instanceof Error && e.message.includes('authentication_required')) {
+        setCsrf('')
+        setHealth(null)
+        setPreview(null)
+        setCandidate('')
+        setFiles({})
+        setInventory('')
+      }
     } finally {
       task.current = false
       setBusy(false)
@@ -216,6 +224,16 @@ export default function Operator() {
       </div>
     )
   const active = health?.active
+  const findings =
+    health?.history
+      .filter(
+        (run) =>
+          run.status === 'failed' ||
+          (Array.isArray(run.counts.anomalies) && run.counts.anomalies.length > 0) ||
+          (Array.isArray(run.counts.publication_anomalies) &&
+            run.counts.publication_anomalies.length > 0),
+      )
+      .slice(0, 3) ?? []
   return (
     <div className="ops-shell">
       <header className="ops-header">
@@ -386,6 +404,25 @@ export default function Operator() {
                 </div>
               </>
             )}
+            <div className="ops-card">
+              <h3>Recent import findings</h3>
+              {findings.length === 0 ? (
+                <p>No findings in the recent recorded imports.</p>
+              ) : (
+                findings.map((run) => (
+                  <p className="notice warning" key={run.run_id}>
+                    {friendly(run.started_at)} -{' '}
+                    {run.error_code?.replaceAll('_', ' ') ??
+                      JSON.stringify(
+                        run.counts.anomalies ?? run.counts.publication_anomalies ?? [],
+                      )}
+                  </p>
+                ))
+              )}
+              <button className="text-button" onClick={() => setTab('history')}>
+                View audited history
+              </button>
+            </div>
           </section>
         )}
         {tab === 'import' && (

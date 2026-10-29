@@ -1,0 +1,30 @@
+name: Developer workflow
+
+on:
+  pull_request:
+    paths: ['*.ps1', 'scripts/**', '.github/workflows/developer-workflow.yml']
+  push:
+    branches: [main, 'codex/**']
+    paths: ['*.ps1', 'scripts/**', '.github/workflows/developer-workflow.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: developer-workflow-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-2025
+    timeout-minutes: 5
+    strategy:
+      matrix:
+        shell: [powershell, pwsh]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Native workflow regression tests
+        shell: ${{ matrix.shell }}
+        run: .\scripts\tests\workflow.tests.ps1

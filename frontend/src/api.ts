@@ -218,12 +218,25 @@ export const api = {
     get<{ data: Building[] }>('buildings', signal, buildingsShape),
   status: (signal?: AbortSignal) => get<StatusResponse>('status', signal, statusShape),
   room: (id: number, signal?: AbortSignal) =>
-    get<{ data: Room }>(`rooms/${id}`, signal, roomResponseShape),
+    get<{ data: Room }>(
+      `rooms/${id}`,
+      signal,
+      (value) =>
+        roomResponseShape(value) &&
+        record(value) &&
+        record(value.data) &&
+        value.data.room_id === id,
+    ),
   schedule: (id: number, date: string, signal?: AbortSignal) =>
     get<ScheduleResponse>(
       `rooms/${id}/schedule?${new URLSearchParams({ date })}`,
       signal,
-      scheduleShape,
+      (value) =>
+        scheduleShape(value) &&
+        record(value) &&
+        record(value.room) &&
+        value.room.room_id === id &&
+        value.date === date,
     ),
   availability: (
     query: { start: string; duration_minutes: number; building?: string },

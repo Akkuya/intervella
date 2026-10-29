@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { api, ApiError } from '../../src/api.ts'
+import { room, schedule } from '../e2e/fixtures.ts'
 
 test('client uses same-origin API, encoded parameters, cancellation and no credentials', async (t) => {
   const signal = new AbortController().signal
@@ -73,4 +74,12 @@ test('unreachable service has controlled connection error', async (t) => {
       error.code === 'connection_error' &&
       !error.message.includes('private'),
   )
+})
+
+test('room endpoints reject payloads for a different room or date', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ data: room })))
+  await assert.rejects(api.room(999), { code: 'invalid_response' })
+  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify(schedule)))
+  await assert.rejects(api.schedule(999, '2026-10-14'), { code: 'invalid_response' })
+  await assert.rejects(api.schedule(1, '2026-10-15'), { code: 'invalid_response' })
 })

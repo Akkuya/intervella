@@ -7,7 +7,7 @@
 
 - A mobile-first campus timetable: cool paper `#f0f5fa`, white `#ffffff`, navy `#142c45`, blue `#155abb`, muted ink `#52667b`, amber `#9c5800`. Georgia display headings, Segoe UI/body system stack, monospace times. Desktop search column plus room grid; mobile search followed by results. Signature is a clear time-window strip, not decorative graphics or animation.
 - Permanent **Unverified / demo data** notice on every view. The API has no provenance flag, so this milestone never certifies current campus data and never silently falls back to mocks. Synthetic fixtures are test-only. No backend, parser, seed, database, or API-contract changes.
-- Reuse installed React and TanStack Query. Use native controls, History/URLSearchParams, Intl timezone formatting, and Fetch/AbortSignal. Add only Playwright and axe development tooling; Node's native test runner covers pure TypeScript utilities. No router, date library, icon package, auth, service worker, maps, recommendations, or scraping.
+- Reuse installed React and TanStack Query. Use native controls, History/URLSearchParams, Intl timezone formatting, and Fetch/AbortSignal. Playwright and axe cover browsers/accessibility; Node's native test runner covers pure TypeScript; locked Prettier provides reviewable TS/TSX/CSS formatting. No router, date library, icon package, auth, service worker, maps, recommendations, or scraping.
 - Typed client for availability, buildings, rooms, schedules, and status. Credentials stay out of browser code. Same-origin `/api` with Vite development proxy; production host must reverse-proxy `/api` to FastAPI. Errors display safe client copy and optional request IDs, not raw backend payloads.
 - URL holds mode, custom date/time/offset, duration, building, selected room, and schedule date. Now bookmarks intentionally mean the current instant; custom bookmarks preserve Toronto wall time and DST choice. Back/forward restores views. Dates are campus-local regardless of device timezone.
 - Convert Toronto wall times using Intl-derived offsets and round-trip candidate validation. Reject nonexistent DST times; ambiguous times require explicit occurrence/offset selection. This conversion only creates request instants, never calculates availability.
@@ -25,3 +25,12 @@
 ## Stop condition
 
 Core flows and states work against existing typed API; production build, unit/browser/a11y checks, lint and types pass; desktop/mobile UI inspected; independent review addressed; PR open with hosted checks passing. Deployment/source provenance and ingestion remain later milestones.
+
+## Execution evidence
+
+- Client/time/URL foundation committed as `3f9282d`; original Vite baseline lint/build passed before changes. Failing tests observed before time/search utilities and malformed-response guard implementation.
+- React UI committed as `c06a042`; subsequent endpoint-identity/not-found tests exposed mismatched room payload handling, now rejected at the client boundary. Source/build consistency was rechecked after final formatting.
+- Toronto DST gaps/duplicates, old URL timestamps on Now links, stale metadata ordering, and custom defaults after elapsed time have regression coverage. Main form submission focuses the results heading; room back navigation restores the room-link focus.
+- Desktop/mobile search and room screenshots inspected. Axe scans are clean after placing data notice in a named landmark. Actual production frontend -> Vite proxy -> real FastAPI -> isolated migrated PostgreSQL/original seed smoke passed with explicit test clocks. Temporary API/server/database were cleaned up; user database was not modified.
+- Original 9 npm advisories resolved by removing unused PWA tooling and applying compatible patches; full audit now reports 0. No production dependency was added. Backend code, parser, migrations, database architecture, and seed remain unchanged.
+- Final frontend CI/docs and independent review pending; then push and PR to main, no merge.

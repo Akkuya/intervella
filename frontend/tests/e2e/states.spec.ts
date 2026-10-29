@@ -16,6 +16,7 @@ test('service connection failure is distinct from browser offline', async ({ pag
 })
 
 test('unknown room shows safe not-found state without fabricated details', async ({ page }) => {
+  // The generic schedule fixture still refers to room 1; it must never become room 999's details.
   await page.route('**/api/v1/rooms/999*', (route) =>
     route.fulfill({ status: 404, json: { error: { code: 'room_not_found' } } }),
   )

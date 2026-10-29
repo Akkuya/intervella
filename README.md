@@ -10,7 +10,7 @@ UTSC's only bookable study space is the library, and it's small and almost alway
 
 ## How it works
 
-The existing HTML parser handles supplied classroom schedule snapshots. PostgreSQL stores stable rooms, versioned occurrences, ingestion evidence, and explicit coverage. The FastAPI backend now exposes validated, snapshot-consistent availability, room schedules, metadata, and health endpoints. Live ingestion, source authorization, and the frontend remain future work.
+The HTML parser handles supplied classroom schedule snapshots. PostgreSQL stores versioned schedule data and explicit coverage. FastAPI provides validated availability and room schedules; the React application supports current/custom searches, bookmarks, room details, and honest freshness/coverage states. Live ingestion and source authorization remain future work. Every frontend view clearly labels data as unverified/demo.
 
 A room being "free" here means **no class is scheduled there right now**. It doesn't mean the room is unlocked, unoccupied by a club or exam, or otherwise guaranteed empty — see [Data source and limitations](#data-source-and-limitations).
 
@@ -20,12 +20,13 @@ A room being "free" here means **no class is scheduled there right now**. It doe
 - Building/room metadata, campus-date schedules, public status, liveness, and readiness.
 - PostgreSQL integration tests and GitHub Actions backend checks.
 
-## Planned frontend features
+## Frontend capabilities
 
-- **Free now**: list of rooms with no class currently running, filterable by building
-- **Free until**: how long a room stays free, so you're not walking into a room 5 minutes before a 300-person lecture
-- **Capacity + room type**: filter by group size
-- Planned: location-based recommendations, a 2D campus map, and a crowd-reported "actually empty" signal (see [scope document](docs/scope.md))
+- Free now or custom Toronto date/time, duration selection, and building filters.
+- Room results with known capacity, next scheduled booking, freshness, and coverage exclusions.
+- Bookmarkable searches, room details/day schedules, keyboard navigation, and responsive layouts.
+- Explicit loading, empty, error, stale, offline, and incomplete-coverage states; no client-side availability calculation.
+- See [frontend setup and verification](frontend/README.md). Maps, crowd reports, recommendations, and authentication remain outside this milestone.
 
 ## Tech stack
 
@@ -34,7 +35,7 @@ A room being "free" here means **no class is scheduled there right now**. It doe
 | Backend | Python, FastAPI, SQLModel, PostgreSQL, Alembic, Psycopg 3 |
 | Ingestion | httpx, BeautifulSoup4, pandas |
 | Frontend | React, TypeScript, Vite, Tailwind CSS |
-| PWA | vite-plugin-pwa |
+| Frontend tests | Node test runner, Playwright, axe |
 
 ## Project structure
 
@@ -92,7 +93,7 @@ The frontend proxies `/api` requests to the backend during development (see `vit
 
 ## Status
 
-Milestone 2 backend implemented. See [API setup and contracts](backend/README.md#milestone-2-public-rest-api) and [`docs/scope.md`](docs/scope.md) for the wider roadmap. The fixed synthetic seed is not current campus data.
+Milestones 1–3 implemented: PostgreSQL foundation, public API, and React application. See [API contracts](backend/README.md#milestone-2-public-rest-api), [frontend guide](frontend/README.md), and [`docs/scope.md`](docs/scope.md). The fixed synthetic seed is not current campus data.
 
 ## Disclaimer
 

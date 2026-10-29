@@ -71,18 +71,33 @@ def dataset_period(session: Session, dataset: Dataset) -> Period | None:
 
 
 def complete_coverage(dataset: Dataset, start: datetime, end: datetime):
-    return (
-        select(col(RoomCoverage.room_id))
+    covered = (
+        select(
+            func.range_agg(
+                func.tstzrange(col(RoomCoverage.starts_at), col(RoomCoverage.ends_at), "[)")
+            )
+        )
         .where(
             col(RoomCoverage.dataset_id) == dataset.id,
             col(RoomCoverage.room_id) == col(Room.id),
             col(RoomCoverage.completeness) == "complete",
-            col(RoomCoverage.starts_at) <= start,
-            col(RoomCoverage.ends_at) >= end,
+        )
+        .correlate(Room)
+        .scalar_subquery()
+    )
+    uncertain = (
+        select(col(RoomCoverage.room_id))
+        .where(
+            col(RoomCoverage.dataset_id) == dataset.id,
+            col(RoomCoverage.room_id) == col(Room.id),
+            col(RoomCoverage.completeness) != "complete",
+            col(RoomCoverage.starts_at) < end,
+            col(RoomCoverage.ends_at) > start,
         )
         .correlate(Room)
         .exists()
     )
+    return func.coalesce(covered.op("@>")(func.tstzrange(start, end, "[)")), False) & ~uncertain
 
 
 def coverage_counts(
@@ -262,18 +277,34 @@ def room_schedule(
             "Choose a date within the published schedule.",
             ["date"],
         )
-    coverage = session.get(RoomCoverage, (dataset.id, room_id))
-    info = (
-        CoverageInfo(completeness="unknown")
-        if coverage is None
-        else CoverageInfo.model_validate(coverage, from_attributes=True)
+    windows = (
+        session.execute(
+            select(RoomCoverage).where(
+                col(RoomCoverage.dataset_id) == dataset.id,
+                col(RoomCoverage.room_id) == room_id,
+                col(RoomCoverage.starts_at) < end,
+                col(RoomCoverage.ends_at) > start,
+            )
+        )
+        .scalars()
+        .all()
     )
-    if (
-        coverage
-        and info.completeness == "complete"
-        and (coverage.starts_at > start or coverage.ends_at < end)
-    ):
-        info.completeness = "partial"
+    full_day = session.scalar(
+        select(complete_coverage(dataset, start, end))
+        .select_from(Room)
+        .where(col(Room.id) == room_id)
+    )
+    info = CoverageInfo(completeness="unknown")
+    if windows:
+        info = CoverageInfo(
+            completeness="complete"
+            if full_day
+            else "partial"
+            if any(w.completeness != "unknown" for w in windows)
+            else "unknown",
+            starts_at=max(start, min(w.starts_at for w in windows)),
+            ends_at=min(end, max(w.ends_at for w in windows)),
+        )
     rows = session.execute(
         select(
             col(MeetingOccurrence.id),

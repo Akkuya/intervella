@@ -120,7 +120,7 @@ class RoomCoverage(SQLModel, table=True):
     )
     dataset_id: UUID = Field(primary_key=True, foreign_key="utscvacant.datasets.id")
     room_id: int = Field(primary_key=True, sa_type=BigInteger, foreign_key="utscvacant.rooms.id")
-    starts_at: datetime = Field(sa_type=DateTime(timezone=True))
+    starts_at: datetime = Field(primary_key=True, sa_type=DateTime(timezone=True))
     ends_at: datetime = Field(sa_type=DateTime(timezone=True))
     completeness: str = Field(sa_type=Text)
 

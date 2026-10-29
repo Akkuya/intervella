@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import type { AvailabilityResponse, ScheduleResponse, StatusResponse } from '../../src/api.ts'
+import type { RoomSearchResponse, ScheduleResponse, StatusResponse } from '../../src/api.ts'
 import { toInstant } from '../../src/time.ts'
 import { shiftDay } from '../../src/calendar-layout.ts'
 
@@ -17,7 +17,7 @@ export const buildings = {
     { id: 2, code: 'SYN-B', name: 'Synthetic Building B' },
   ],
 }
-export const available: AvailabilityResponse = {
+export const available: RoomSearchResponse = {
   query: { start: NOW, end: '2026-10-14T13:00:00Z', timezone: 'America/Toronto' },
   data: [
     {
@@ -25,7 +25,10 @@ export const available: AvailabilityResponse = {
       building_code: 'SYN-A',
       room_number: '101',
       capacity: 24,
-      status: 'schedule_available',
+      state: 'available',
+      active: true,
+      available_until: '2026-10-14T13:00:00Z',
+      next_available_start: NOW,
       next_booking: '2026-10-14T13:00:00Z',
     },
     {
@@ -33,11 +36,21 @@ export const available: AvailabilityResponse = {
       building_code: 'SYN-B',
       room_number: '205',
       capacity: null,
-      status: 'schedule_available',
+      state: 'available',
+      active: true,
+      available_until: '2026-10-15T02:00:00Z',
+      next_available_start: NOW,
       next_booking: null,
     },
   ],
-  meta: { ...meta, coverage: 'partial', unknown_room_count: 3, has_more: false },
+  meta: {
+    ...meta,
+    coverage: 'partial',
+    unknown_room_count: 3,
+    has_more: false,
+    missing_room_ids: [],
+    lookahead_end: '2026-10-15T12:00:00Z',
+  },
 }
 export const room = {
   room_id: 1,
@@ -146,8 +159,25 @@ export async function mockAPI(page: Page) {
       ? buildings
       : path.endsWith('/status')
         ? status
-        : path.endsWith('/availability')
-          ? available
+        : path.endsWith('/room-search')
+          ? {
+              ...available,
+              data: available.data.filter((item) => {
+                const params = new URL(route.request().url()).searchParams
+                const ids = params.getAll('room_ids')
+                const name = (params.get('room_name') ?? '')
+                  .replace(/[^a-z0-9]/gi, '')
+                  .toUpperCase()
+                return (
+                  (!ids.length || ids.includes(String(item.room_id))) &&
+                  (!params.get('building') || params.get('building') === item.building_code) &&
+                  `${item.building_code}${item.room_number}`
+                    .replace(/[^a-z0-9]/gi, '')
+                    .toUpperCase()
+                    .includes(name)
+                )
+              }),
+            }
           : path.startsWith('/api/v1/buildings/')
             ? {
                 building:

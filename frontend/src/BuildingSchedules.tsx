@@ -8,6 +8,7 @@ import { EmptyState } from './ui.tsx'
 import { navigate } from './navigation.ts'
 import { readLocation } from './search.ts'
 import { roomLabel } from './rooms.ts'
+import { FavouriteButton } from './FavouriteButton.tsx'
 
 export function BuildingSchedules({
   query,
@@ -109,6 +110,7 @@ export function BuildingSchedules({
         <p role="status">Loading building schedule…</p>
       ) : (
         <>
+          <FavouriteButton kind="buildings" id={code} label={code} />
           <FreshnessNote meta={result.data.meta} status={status} />
           {result.data.meta.unknown_room_count > 0 && (
             <p className="coverage-note" role="status">

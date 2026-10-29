@@ -7,6 +7,12 @@ export interface SearchInput {
   offset: string
   duration: number
   building: string
+  endDate?: string
+  endTime?: string
+  endOffset?: string
+  roomName?: string
+  sort?: 'building' | 'room' | 'duration'
+  includeNext?: boolean
 }
 
 export function readLocation(query: string, now = new Date()) {
@@ -22,6 +28,12 @@ export function readLocation(query: string, now = new Date()) {
     offset: mode === 'custom' ? (params.get('offset') ?? '') : '',
     duration: Number.isInteger(duration) && duration >= 5 && duration <= 240 ? duration : 60,
     building: params.get('building') ?? '',
+    endDate: params.get('end_date') ?? undefined,
+    endTime: params.get('end_time') ?? undefined,
+    endOffset: params.get('end_offset') ?? undefined,
+    roomName: params.get('room_name') ?? undefined,
+    sort: (params.get('sort') ?? 'building') as SearchInput['sort'],
+    includeNext: params.get('include_next') === '1',
   }
   const room = params.get('room')
   const roomId =
@@ -30,7 +42,7 @@ export function readLocation(query: string, now = new Date()) {
       : undefined
   const scheduleDate = params.get('schedule_date') ?? search.date
   let error: string | undefined
-  if (!['find', 'buildings'].includes(view))
+  if (!['find', 'buildings', 'saved'].includes(view))
     error = 'This page link is invalid. Return to the room search.'
   else if (params.has('mode') && !['now', 'custom'].includes(params.get('mode')!))
     error = 'Saved search mode is invalid. Choose a new search.'
@@ -39,6 +51,10 @@ export function readLocation(query: string, now = new Date()) {
   else if (room !== null && roomId === undefined)
     error = 'This room link is invalid. Return to the room search.'
   else if (!validDate(scheduleDate)) error = 'Choose a valid schedule date.'
+  else if (!['building', 'room', 'duration'].includes(search.sort!))
+    error = 'Choose a valid sort order.'
+  else if (params.has('include_next') && !['0', '1'].includes(params.get('include_next')!))
+    error = 'Choose a valid next-opening option.'
   else if (search.mode === 'custom') {
     if (!params.has('date') || !params.has('time'))
       error = 'The saved search needs a date and time.'
@@ -48,6 +64,13 @@ export function readLocation(query: string, now = new Date()) {
       } catch (cause) {
         error = (cause as Error).message
       }
+  }
+  if (!error) {
+    try {
+      requestParams(search, now)
+    } catch (cause) {
+      error = (cause as Error).message
+    }
   }
   return { search, roomId, scheduleDate, error, view }
 }
@@ -60,6 +83,14 @@ export function searchParams(search: SearchInput): URLSearchParams {
     if (search.offset) params.set('offset', search.offset)
   }
   if (search.building) params.set('building', search.building)
+  if (search.endDate !== undefined || search.endTime !== undefined) {
+    params.set('end_date', search.endDate ?? '')
+    params.set('end_time', search.endTime ?? '')
+    if (search.endOffset) params.set('end_offset', search.endOffset)
+  }
+  if (search.roomName) params.set('room_name', search.roomName)
+  if (search.sort && search.sort !== 'building') params.set('sort', search.sort)
+  if (search.includeNext) params.set('include_next', '1')
   return params
 }
 
@@ -67,12 +98,29 @@ export function requestParams(search: SearchInput, now = new Date()) {
   if (!Number.isInteger(search.duration) || search.duration < 5 || search.duration > 240) {
     throw new Error('Choose a duration between 5 and 240 minutes.')
   }
+  const start =
+    search.mode === 'now' ? now.toISOString() : toInstant(search.date, search.time, search.offset)
+  const until = search.endDate !== undefined || search.endTime !== undefined
+  const end = until
+    ? toInstant(search.endDate ?? '', search.endTime ?? '', search.endOffset)
+    : undefined
+  if (
+    end &&
+    (Date.parse(end) - Date.parse(start) < 5 * 60_000 ||
+      Date.parse(end) - Date.parse(start) > 240 * 60_000)
+  )
+    throw new Error('Choose an end time 5 to 240 minutes after the start.')
+  if (!['building', 'room', 'duration'].includes(search.sort ?? 'building'))
+    throw new Error('Choose a valid sort order.')
+  if (search.roomName && (search.roomName.length > 64 || !/[a-z0-9]/i.test(search.roomName)))
+    throw new Error('Enter a room identifier, such as AA-112.')
   return {
-    start:
-      search.mode === 'now'
-        ? now.toISOString()
-        : toInstant(search.date, search.time, search.offset),
-    duration_minutes: search.duration,
+    start,
+    end,
+    duration_minutes: until ? undefined : search.duration,
     building: search.building || undefined,
+    room_name: search.roomName?.trim() || undefined,
+    sort: search.sort ?? 'building',
+    include_next: search.includeNext ?? false,
   }
 }

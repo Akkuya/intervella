@@ -14,7 +14,7 @@ test('search, room schedule, URL navigation and accessible responsive layout', a
   await expect(page.getByText('Unverified / demo data', { exact: true })).toBeVisible()
   await expect(page.getByRole('link', { name: 'View SYN-A-101' })).toBeVisible()
   await expect(page.getByText('3 rooms excluded', { exact: false })).toBeVisible()
-  await page.getByLabel('Building').selectOption('SYN-A')
+  await page.getByRole('combobox', { name: 'Building', exact: true }).selectOption('SYN-A')
   await page.getByRole('button', { name: 'Find rooms' }).click()
   await expect(page.getByRole('heading', { name: 'Schedule available', exact: true })).toBeFocused()
   await expect(page).toHaveURL(/building=SYN-A/)

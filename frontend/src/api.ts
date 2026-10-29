@@ -37,6 +37,27 @@ export interface Coverage {
   starts_at: string | null
   ends_at: string | null
 }
+export interface SearchRoom extends Room {
+  state: 'available' | 'scheduled' | 'unknown' | 'inactive'
+  available_until: string | null
+  next_available_start: string | null
+  next_booking: string | null
+}
+export interface RoomSearchResponse {
+  query: TimeWindow
+  data: SearchRoom[]
+  meta: AvailabilityResponse['meta'] & { missing_room_ids: number[]; lookahead_end: string }
+}
+export interface RoomSearchQuery {
+  start: string
+  end?: string
+  duration_minutes?: number
+  building?: string
+  room_name?: string
+  sort?: 'building' | 'room' | 'duration'
+  include_next?: boolean
+  room_ids?: number[]
+}
 export interface ScheduleResponse {
   room: Room
   date: string
@@ -107,6 +128,7 @@ const messages: Record<string, string> = {
   building_not_found: 'This building could not be found. Choose an active building.',
   schedule_too_large:
     'This calendar exceeds the safe display limit. Choose a smaller building or another date.',
+  search_too_large: 'This search exceeds the safe limit. Narrow the building or room filter.',
 }
 
 export class ApiError extends Error {
@@ -253,6 +275,35 @@ const scheduleShape = (value: unknown) =>
   Array.isArray(value.data) &&
   value.data.every(meetingShape) &&
   (value.calendar === undefined || value.calendar === null || calendarShape(value.calendar))
+const roomSearchShape = (value: unknown) =>
+  record(value) &&
+  windowShape(value.query) &&
+  record(value.query) &&
+  record(value.meta) &&
+  freshnessShape(value.meta) &&
+  integer(value.meta.unknown_room_count) &&
+  ['complete', 'partial'].includes(value.meta.coverage as string) &&
+  typeof value.meta.has_more === 'boolean' &&
+  instant(value.meta.lookahead_end) &&
+  Array.isArray(value.meta.missing_room_ids) &&
+  value.meta.missing_room_ids.every(integer) &&
+  Array.isArray(value.data) &&
+  value.data.length <= 100 &&
+  value.data.every(
+    (item: unknown) =>
+      record(item) &&
+      roomResponseShape({ data: item }) &&
+      ['available', 'scheduled', 'unknown', 'inactive'].includes(item.state as string) &&
+      nullableInstant(item.available_until) &&
+      nullableInstant(item.next_available_start) &&
+      nullableInstant(item.next_booking) &&
+      (item.state !== 'available' ||
+        (item.active === true &&
+          instant(item.available_until) &&
+          Date.parse(item.available_until as string) >=
+            Date.parse((value.query as Record<string, string>).end))) &&
+      (item.state === 'available' || item.available_until === null),
+  )
 const statusShape = (value: unknown) =>
   record(value) &&
   freshnessShape(value) &&
@@ -303,6 +354,26 @@ async function get<T>(
 }
 
 export const api = {
+  roomSearch: (query: RoomSearchQuery, signal?: AbortSignal) => {
+    const params = new URLSearchParams()
+    for (const [key, value] of Object.entries(query)) {
+      if (key === 'room_ids')
+        (value as number[]).forEach((id) => params.append('room_ids', String(id)))
+      else if (value !== undefined) params.set(key, String(value))
+    }
+    return get<RoomSearchResponse>(
+      `room-search?${params}`,
+      signal,
+      (value) =>
+        roomSearchShape(value) &&
+        record(value) &&
+        Array.isArray(value.data) &&
+        (!query.room_ids ||
+          value.data.every(
+            (item: unknown) => record(item) && query.room_ids!.includes(item.room_id as number),
+          )),
+    )
+  },
   buildingSchedule: (code: string, date: string, signal?: AbortSignal) =>
     get<BuildingScheduleResponse>(
       `buildings/${encodeURIComponent(code)}/schedule?${new URLSearchParams({ date })}`,

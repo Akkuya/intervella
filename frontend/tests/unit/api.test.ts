@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { api, ApiError } from '../../src/api.ts'
-import { room, schedule } from '../e2e/fixtures.ts'
+import { room, schedule, available } from '../e2e/fixtures.ts'
 
 test('client uses same-origin API, encoded parameters, cancellation and no credentials', async (t) => {
   const signal = new AbortController().signal
@@ -45,6 +45,7 @@ test('malformed success payloads produce controlled errors instead of broken UI'
   t.mock.method(globalThis, 'fetch', async () => new Response('{}'))
   for (const call of [
     () => api.buildings(),
+    () => api.roomSearch({ start: '2026-10-14T12:00:00Z' }),
     () => api.buildingSchedule('SYN-A', '2026-10-14'),
     () => api.status(),
     () => api.room(1),
@@ -83,4 +84,25 @@ test('room endpoints reject payloads for a different room or date', async (t) =>
   t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify(schedule)))
   await assert.rejects(api.schedule(999, '2026-10-14'), { code: 'invalid_response' })
   await assert.rejects(api.schedule(1, '2026-10-15'), { code: 'invalid_response' })
+})
+
+test('room search encodes batches and rejects mismatched identities or unproven free bounds', async (t) => {
+  let response = available
+  t.mock.method(globalThis, 'fetch', async (url: string, options: RequestInit) => {
+    assert.deepEqual(new URL(url, 'https://example.test').searchParams.getAll('room_ids'), [
+      '1',
+      '2',
+    ])
+    assert.equal(options.credentials, 'omit')
+    return new Response(JSON.stringify(response))
+  })
+  await api.roomSearch({ start: available.query.start, room_ids: [1, 2] })
+  response = { ...available, data: [{ ...available.data[0], room_id: 999 }] }
+  await assert.rejects(api.roomSearch({ start: available.query.start, room_ids: [1, 2] }), {
+    code: 'invalid_response',
+  })
+  response = { ...available, data: [{ ...available.data[0], available_until: null }] }
+  await assert.rejects(api.roomSearch({ start: available.query.start, room_ids: [1, 2] }), {
+    code: 'invalid_response',
+  })
 })

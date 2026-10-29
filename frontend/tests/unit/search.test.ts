@@ -49,3 +49,19 @@ test('now bookmarks ignore legacy fixed date and offset fields', () => {
   assert.equal(location.search.time, '08:00')
   assert.equal(location.search.offset, '')
 })
+
+test('until searches restore both Toronto instants and smart filters', () => {
+  const query =
+    '?mode=custom&date=2026-11-01&time=01%3A30&offset=-04%3A00&end_date=2026-11-01&end_time=01%3A30&end_offset=-05%3A00&room_name=AA112&sort=duration&include_next=1'
+  const first = readLocation(query, now)
+  assert.equal(first.error, undefined)
+  assert.equal(requestParams(first.search, now).end, '2026-11-01T06:30:00.000Z')
+  assert.equal(requestParams(first.search, now).duration_minutes, undefined)
+  assert.deepEqual(readLocation(`?${searchParams(first.search)}`, now).search, first.search)
+  for (const bad of ['&sort=unsafe', '&end_offset=bad', '&end_date=bad']) {
+    const changed = new URLSearchParams(query)
+    const [key, value] = bad.slice(1).split('=')
+    changed.set(key, value)
+    assert.ok(readLocation(`?${changed}`, now).error)
+  }
+})

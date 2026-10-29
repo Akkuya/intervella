@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from './api.ts'
-import type { AvailabilityResponse, StatusResponse } from './api.ts'
+import type { StatusResponse } from './api.ts'
 import { ErrorPanel, FreshnessNote, OfflinePanel, SearchForm } from './components.tsx'
 import { navigate, routeClick, useLocationSearch, useOnline } from './navigation.ts'
 import { readLocation, requestParams, searchParams } from './search.ts'
@@ -9,78 +9,12 @@ import type { SearchInput } from './search.ts'
 import { campusTimeLabel, dateLabel, nextBookingLabel } from './time.ts'
 import { ThemeControl } from './theme.tsx'
 import { roomLabel } from './rooms.ts'
-import { Badge, EmptyState, RoomCard } from './ui.tsx'
+import { Results } from './Results.tsx'
+import { SavedRooms } from './SavedRooms.tsx'
+import { FavouriteButton } from './FavouriteButton.tsx'
 import { Calendar, CalendarDate, MeetingList } from './Calendar.tsx'
 import { BuildingSchedules } from './BuildingSchedules.tsx'
 import './App.css'
-
-function Results({
-  result,
-  status,
-  params,
-}: {
-  result: AvailabilityResponse
-  status?: StatusResponse
-  params: URLSearchParams
-}) {
-  return (
-    <>
-      <div className="time-strip">
-        <span className="eyebrow">Search window · Toronto</span>
-        <strong className="tabular-nums">
-          {campusTimeLabel(result.query.start)} <span aria-hidden="true">—</span>
-          <span className="sr-only"> to </span>{' '}
-          {nextBookingLabel(result.query.end, result.query.start)}
-        </strong>
-        <span>{dateLabel(result.query.start)}</span>
-      </div>
-      <FreshnessNote meta={result.meta} status={status} />
-      {result.meta.unknown_room_count > 0 && (
-        <p className="coverage-note" role="status">
-          <strong>{result.meta.unknown_room_count} rooms excluded</strong> because coverage is
-          incomplete, unknown, or too short for this search.
-        </p>
-      )}
-      <p className="result-count" role="status">
-        {result.data.length} {result.data.length === 1 ? 'room matches' : 'rooms match'} this search
-      </p>
-      {result.data.length === 0 ? (
-        <EmptyState title="No matching rooms for this time">
-          <p>
-            No fully covered rooms match this search. Try another duration or building. This is not
-            a statement about every room on campus.
-          </p>
-        </EmptyState>
-      ) : (
-        <div className="room-grid">
-          {result.data.map((room) => (
-            <RoomCard
-              room={room}
-              params={params}
-              key={room.room_id}
-              status={<Badge tone="green">Schedule available</Badge>}
-            >
-              <div className="booking">
-                <span>Next scheduled booking</span>
-                <strong>
-                  {room.next_booking
-                    ? nextBookingLabel(room.next_booking, result.query.start)
-                    : 'No later booking known'}
-                </strong>
-              </div>
-            </RoomCard>
-          ))}
-        </div>
-      )}
-      {result.meta.has_more && (
-        <p className="coverage-note">
-          More rooms match. Narrow the building filter to see a smaller set; results are capped by
-          the service.
-        </p>
-      )}
-    </>
-  )
-}
 
 function RoomDetails({
   id,
@@ -126,6 +60,9 @@ function RoomDetails({
             {details.capacity === null ? 'Capacity not published' : `${details.capacity} seats`}
             {!details.active && ' · Inactive listing'}
           </p>
+        )}
+        {details && (
+          <FavouriteButton kind="rooms" id={details.room_id} label={roomLabel(details)} />
         )}
       </div>
       {!online ? (
@@ -250,7 +187,7 @@ export default function App() {
   })
   const result = useQuery({
     queryKey: ['availability', searchParams(location.search).toString(), status.data?.dataset_id],
-    queryFn: ({ signal }) => api.availability(requestParams(location.search), signal),
+    queryFn: ({ signal }) => api.roomSearch(requestParams(location.search), signal),
     enabled: online && !location.error && location.roomId === undefined && location.view === 'find',
     staleTime: location.search.mode === 'now' ? 0 : Infinity,
     refetchInterval: location.search.mode === 'now' ? 60_000 : false,
@@ -275,6 +212,8 @@ export default function App() {
   const calendarParams = new URLSearchParams(findParams)
   calendarParams.set('view', 'buildings')
   calendarParams.set('schedule_date', location.scheduleDate)
+  const savedParams = new URLSearchParams(findParams)
+  savedParams.set('view', 'saved')
   const onSearch = (input: SearchInput) => {
     const params = searchParams(input)
     const unchanged = params.toString() === searchParams(location.search).toString()
@@ -312,6 +251,13 @@ export default function App() {
           >
             Building schedules
           </a>
+          <a
+            href={`?${savedParams}`}
+            onClick={(event) => routeClick(event, savedParams)}
+            aria-current={!location.roomId && location.view === 'saved' ? 'page' : undefined}
+          >
+            Saved rooms
+          </a>
         </nav>
       </header>
       <aside className="provenance shell" id="data-note" aria-label="Data provenance">
@@ -335,6 +281,14 @@ export default function App() {
             status={status.data}
             online={online}
             query={query}
+          />
+        ) : location.view === 'saved' ? (
+          <SavedRooms
+            query={query}
+            online={online}
+            status={status.data}
+            statusPending={status.isPending}
+            buildings={buildings.data?.data ?? []}
           />
         ) : location.view === 'buildings' ? (
           <BuildingSchedules

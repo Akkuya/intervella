@@ -4,7 +4,15 @@ import type { Building, Freshness, StatusResponse } from './api.ts'
 import { ApiError } from './api.ts'
 import type { SearchInput } from './search.ts'
 import { requestParams } from './search.ts'
-import { campusDate, campusTime, campusTimeLabel, dateLabel, localCandidates } from './time.ts'
+import {
+  campusDate,
+  campusTime,
+  campusTimeLabel,
+  dateLabel,
+  localCandidates,
+  zoneLabel,
+} from './time.ts'
+import { Button, Badge } from './ui.tsx'
 
 export function ErrorPanel({ error, onRetry }: { error: unknown; onRetry: () => void }) {
   return (
@@ -16,9 +24,9 @@ export function ErrorPanel({ error, onRetry }: { error: unknown; onRetry: () => 
           Request reference: <code>{error.requestId}</code>
         </p>
       )}
-      <button type="button" className="button secondary" onClick={onRetry}>
+      <Button variant="secondary" onClick={onRetry}>
         Try again
-      </button>
+      </Button>
     </div>
   )
 }
@@ -49,19 +57,26 @@ export function FreshnessNote({ meta, status }: { meta: Freshness; status?: Stat
           <p>The source is stale. Covered results are still shown, but may miss recent changes.</p>
         </div>
       )}
-      <p>
-        <span className={`badge ${current.freshness === 'stale' ? 'amber' : ''}`}>
+      <p className="freshness-line">
+        <Badge tone={current.freshness === 'stale' ? 'amber' : ''}>
           {current.freshness === 'stale' ? 'Stale source' : 'Fresh source'}
-        </span>
+        </Badge>
         <span>
-          {' '}
-          Fetched {dateLabel(meta.source_fetched_at)} at {campusTimeLabel(meta.source_fetched_at)}
+          Updated {dateLabel(meta.source_fetched_at)} at {campusTimeLabel(meta.source_fetched_at)} ·
+          Toronto time
         </span>
       </p>
-      <p className="small">
-        Last checked {dateLabel(meta.generated_at)} at {campusTimeLabel(meta.generated_at)} Toronto
-        time. Source freshness does not guarantee physical vacancy.
-      </p>
+      <details className="source-details">
+        <summary>Source details</summary>
+        <p>
+          Fetched {dateLabel(meta.source_fetched_at, true)} at{' '}
+          {campusTimeLabel(meta.source_fetched_at)} Toronto time.
+        </p>
+        <p>
+          Last checked {dateLabel(meta.generated_at, true)} at {campusTimeLabel(meta.generated_at)}{' '}
+          Toronto time. Source freshness does not guarantee physical vacancy.
+        </p>
+      </details>
     </div>
   )
 }
@@ -180,7 +195,7 @@ export function SearchForm({
                 <option value="">Choose an occurrence</option>
                 {candidates.map((candidate, i) => (
                   <option key={candidate.offset} value={candidate.offset}>
-                    {i === 0 ? 'First' : 'Second'} occurrence (UTC{candidate.offset})
+                    {i === 0 ? 'First' : 'Second'} occurrence ({zoneLabel(candidate.instant)})
                   </option>
                 ))}
               </select>
@@ -193,7 +208,7 @@ export function SearchForm({
         </p>
       )}
       <p id="timezone-help" className="small">
-        All times Toronto · America/Toronto · 24-hour clock
+        All dates and times use Toronto time (ET).
       </p>
       <label>
         Duration
@@ -231,9 +246,9 @@ export function SearchForm({
       <p id="search-error" className="form-error" role={error ? 'alert' : undefined}>
         {error}
       </p>
-      <button className="button primary" type="submit">
+      <Button type="submit">
         Find rooms <span aria-hidden="true">↗</span>
-      </button>
+      </Button>
       <p className="small">
         A schedule can show a gap. It can’t tell you whether a door is open or a room is occupied.
       </p>

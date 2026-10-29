@@ -13,7 +13,7 @@ for (const url of ['/', '/?mode=custom&date=2026-10-14&time=09%3A00']) {
       if (request.url().includes('/availability')) requests++
     })
     await page.goto(url)
-    await expect(page.getByRole('link', { name: 'View SYN-A 101' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'View SYN-A-101' })).toBeVisible()
     await page.waitForLoadState('networkidle')
     const before = requests
     await page.getByRole('button', { name: 'Find rooms' }).click()
@@ -29,12 +29,12 @@ test('search windows distinguish repeated times and overnight end dates', async 
     route.fulfill({ json: { ...available, query } }),
   )
   await page.goto('/?mode=custom&date=2026-11-01&time=01%3A30&offset=-04%3A00')
-  await expect(page.locator('.time-strip')).toContainText('01:30 GMT-04:00')
-  await expect(page.locator('.time-strip')).toContainText('01:30 GMT-05:00')
+  await expect(page.locator('.time-strip')).toContainText('1:30 AM EDT')
+  await expect(page.locator('.time-strip')).toContainText('1:30 AM EST')
   query = { ...query, start: '2026-10-15T03:30:00Z', end: '2026-10-15T04:30:00Z' }
   await page.goto('/?mode=custom&date=2026-10-14&time=23%3A30')
-  await expect(page.locator('.time-strip strong')).toContainText('Oct 15, 2026')
-  await expect(page.locator('.time-strip strong')).toContainText('00:30 GMT-04:00')
+  await expect(page.locator('.time-strip strong')).toContainText('Oct 15')
+  await expect(page.locator('.time-strip strong')).toContainText('12:30 AM')
   expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(
     false,
   )
@@ -57,12 +57,12 @@ test('unknown room shows safe not-found state without fabricated details', async
   )
   await page.goto('/?room=999')
   await expect(page.getByText('This room could not be found.', { exact: false })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'SYN-A 101', exact: true })).not.toBeVisible()
+  await expect(page.getByRole('heading', { name: 'SYN-A-101', exact: true })).not.toBeVisible()
 })
 
 test('switching from now to custom uses the current Toronto time', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByRole('link', { name: 'View SYN-A 101' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'View SYN-A-101' })).toBeVisible()
   await page.clock.fastForward(120_000)
   await page.getByLabel('Choose a time').check()
   await expect(page.getByLabel('Start time')).toHaveValue('08:02')
@@ -133,7 +133,7 @@ test('newer stale result is not masked by an older fresh status response', async
   await page.goto('/')
   await expect(page.getByText('Older schedule', { exact: true })).toBeVisible()
   await expect(page.getByText('Stale source', { exact: true })).toBeVisible()
-  await expect(page.getByRole('link', { name: 'View SYN-A 101' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'View SYN-A-101' })).toBeVisible()
 })
 
 test('coverage error does not become empty or available rooms and server details are safe', async ({
@@ -148,7 +148,7 @@ test('coverage error does not become empty or available rooms and server details
   )
   await page.goto('/')
   await expect(page.getByText('Coverage is incomplete or unknown', { exact: false })).toBeVisible()
-  await expect(page.getByRole('link', { name: 'View SYN-A 101' })).not.toBeVisible()
+  await expect(page.getByRole('link', { name: 'View SYN-A-101' })).not.toBeVisible()
   await expect(page.getByText('No matching rooms for this time')).not.toBeVisible()
   await expect(page.getByText('test-reference', { exact: true })).toBeVisible()
   await expect(page.getByText('password=private', { exact: false })).not.toBeVisible()
@@ -159,12 +159,12 @@ test('offline state hides previous availability and reconnect recovers', async (
   context,
 }) => {
   await page.goto('/')
-  await expect(page.getByRole('link', { name: 'View SYN-A 101' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'View SYN-A-101' })).toBeVisible()
   await context.setOffline(true)
   await expect(page.getByRole('heading', { name: 'You’re offline' })).toBeVisible()
-  await expect(page.getByRole('link', { name: 'View SYN-A 101' })).not.toBeVisible()
+  await expect(page.getByRole('link', { name: 'View SYN-A-101' })).not.toBeVisible()
   await context.setOffline(false)
-  await expect(page.getByRole('link', { name: 'View SYN-A 101' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'View SYN-A-101' })).toBeVisible()
 })
 
 test('superseded responses cannot replace a newer search', async ({ page }) => {
@@ -183,15 +183,15 @@ test('superseded responses cannot replace a newer search', async ({ page }) => {
   await expect(page.getByLabel('Building').locator('option[value="SYN-B"]')).toBeAttached()
   await page.getByLabel('Building').selectOption('SYN-B')
   await page.getByRole('button', { name: 'Find rooms' }).click()
-  await expect(page.getByRole('link', { name: 'View SYN-B 205' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'View SYN-B-205' })).toBeVisible()
   release()
   await page.waitForLoadState('networkidle')
-  await expect(page.getByRole('link', { name: 'View SYN-A 101' })).not.toBeVisible()
+  await expect(page.getByRole('link', { name: 'View SYN-A-101' })).not.toBeVisible()
 })
 
 test('DST gap is rejected and repeated time requires explicit offset', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByRole('link', { name: 'View SYN-A 101' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'View SYN-A-101' })).toBeVisible()
   await page.getByLabel('Choose a time').check()
   await page.getByLabel('Date', { exact: true }).fill('2026-03-08')
   await page.getByLabel('Start time').fill('02:30')
@@ -246,17 +246,17 @@ test('keyboard controls, focus restoration and malformed bookmark recovery', asy
   await expect(page.locator('main')).toBeFocused()
   await page.getByRole('button', { name: 'Find rooms' }).focus()
   await page.keyboard.press('Enter')
-  await expect(page.getByRole('link', { name: 'View SYN-A 101' })).toBeVisible()
-  await page.getByRole('link', { name: 'View SYN-A 101' }).focus()
+  await expect(page.getByRole('link', { name: 'View SYN-A-101' })).toBeVisible()
+  await page.getByRole('link', { name: 'View SYN-A-101' }).focus()
   await page.keyboard.press('Enter')
-  await expect(page.getByRole('heading', { name: 'SYN-A 101', exact: true })).toBeFocused()
+  await expect(page.getByRole('heading', { name: 'SYN-A-101', exact: true })).toBeFocused()
 })
 
 test('Now refreshes at 60 seconds while a fixed search waits for dataset change', async ({
   page,
 }) => {
   await page.goto('/')
-  await expect(page.getByRole('link', { name: 'View SYN-A 101' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'View SYN-A-101' })).toBeVisible()
   const next = page.waitForRequest(
     (item) =>
       item.url().includes('/availability') &&
@@ -269,7 +269,7 @@ test('Now refreshes at 60 seconds while a fixed search waits for dataset change'
     if (item.url().includes('/availability')) count++
   })
   await page.goto('/?mode=custom&date=2026-10-14&time=09%3A00&duration=60')
-  await expect(page.getByRole('link', { name: 'View SYN-A 101' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'View SYN-A-101' })).toBeVisible()
   await page.waitForLoadState('networkidle')
   const before = count
   await page.clock.fastForward(60_000)

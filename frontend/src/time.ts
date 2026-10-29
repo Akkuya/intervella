@@ -24,21 +24,32 @@ function parts(value: string | Date) {
 
 export const campusDate = (value: string | Date) => parts(value).date
 export const campusTime = (value: string | Date) => parts(value).time
-const timeLabelFormatter = new Intl.DateTimeFormat('en-CA', {
+const timeLabelFormatter = new Intl.DateTimeFormat('en-US', {
   timeZone: CAMPUS_ZONE,
-  hour: '2-digit',
+  hour: 'numeric',
   minute: '2-digit',
-  hourCycle: 'h23',
-  timeZoneName: 'longOffset',
+  hour12: true,
 })
-export const campusTimeLabel = (value: string | Date) => timeLabelFormatter.format(new Date(value))
-export const dateLabel = (value: string | Date) =>
+export const zoneLabel = (value: string | Date) =>
+  new Intl.DateTimeFormat('en-US', {
+    timeZone: CAMPUS_ZONE,
+    timeZoneName: 'short',
+  })
+    .formatToParts(new Date(value))
+    .find((part) => part.type === 'timeZoneName')!.value
+export function campusTimeLabel(value: string | Date) {
+  const text = timeLabelFormatter.format(new Date(value))
+  return localCandidates(campusDate(value), campusTime(value)).length > 1
+    ? `${text} ${zoneLabel(value)}`
+    : text
+}
+export const dateLabel = (value: string | Date, includeYear = false) =>
   new Intl.DateTimeFormat('en-CA', {
     timeZone: CAMPUS_ZONE,
     weekday: 'short',
     month: 'short',
     day: 'numeric',
-    year: 'numeric',
+    ...(includeYear ? { year: 'numeric' as const } : {}),
   }).format(new Date(value))
 
 export function validDate(value: string): boolean {
@@ -96,5 +107,6 @@ export function toInstant(date: string, time: string, offset = ''): string {
 }
 
 export function nextBookingLabel(value: string, searchStart: string) {
-  return `${campusDate(value) !== campusDate(searchStart) ? `${dateLabel(value)} · ` : ''}${campusTimeLabel(value)}`
+  const differentYear = campusDate(value).slice(0, 4) !== campusDate(searchStart).slice(0, 4)
+  return `${campusDate(value) !== campusDate(searchStart) ? `${dateLabel(value, differentYear)} · ` : ''}${campusTimeLabel(value)}`
 }

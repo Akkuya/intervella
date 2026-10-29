@@ -7,6 +7,9 @@ import { navigate, routeClick, useLocationSearch, useOnline } from './navigation
 import { readLocation, requestParams, searchParams } from './search.ts'
 import type { SearchInput } from './search.ts'
 import { campusTimeLabel, dateLabel, validDate, nextBookingLabel } from './time.ts'
+import { ThemeControl } from './theme.tsx'
+import { roomLabel } from './rooms.ts'
+import { Badge, EmptyState, RoomCard } from './ui.tsx'
 import './App.css'
 
 function Results({
@@ -40,56 +43,31 @@ function Results({
         {result.data.length} {result.data.length === 1 ? 'room matches' : 'rooms match'} this search
       </p>
       {result.data.length === 0 ? (
-        <div className="state-panel">
-          <h3>No matching rooms for this time</h3>
+        <EmptyState title="No matching rooms for this time">
           <p>
             No fully covered rooms match this search. Try another duration or building. This is not
             a statement about every room on campus.
           </p>
-        </div>
+        </EmptyState>
       ) : (
         <div className="room-grid">
-          {result.data.map((room) => {
-            const detail = new URLSearchParams(params)
-            detail.set('room', String(room.room_id))
-            detail.delete('schedule_date')
-            return (
-              <article
-                className="room-card"
-                key={room.room_id}
-                aria-label={`${room.building_code} ${room.room_number}`}
-              >
-                <div className="room-card-top">
-                  <span className="building-code">{room.building_code}</span>
-                  <span className="badge green">Schedule available</span>
-                </div>
-                <h3>
-                  <span className="small room-prefix">Room</span>
-                  {room.room_number}
-                </h3>
-                <p className="capacity">
-                  {room.capacity === null ? 'Capacity not published' : `${room.capacity} seats`}
-                </p>
-                <div className="booking">
-                  <span>Next scheduled booking</span>
-                  <strong>
-                    {room.next_booking
-                      ? nextBookingLabel(room.next_booking, result.query.start)
-                      : 'No later booking known'}
-                  </strong>
-                </div>
-                <a
-                  id={`room-link-${room.room_id}`}
-                  className="room-link"
-                  href={`?${detail}`}
-                  onClick={(event) => routeClick(event, detail)}
-                >
-                  View {room.building_code} {room.room_number}
-                  <span aria-hidden="true">↗</span>
-                </a>
-              </article>
-            )
-          })}
+          {result.data.map((room) => (
+            <RoomCard
+              room={room}
+              params={params}
+              key={room.room_id}
+              status={<Badge tone="green">Schedule available</Badge>}
+            >
+              <div className="booking">
+                <span>Next scheduled booking</span>
+                <strong>
+                  {room.next_booking
+                    ? nextBookingLabel(room.next_booking, result.query.start)
+                    : 'No later booking known'}
+                </strong>
+              </div>
+            </RoomCard>
+          ))}
         </div>
       )}
       {result.meta.has_more && (
@@ -141,7 +119,7 @@ function RoomDetails({
       <div className="detail-heading">
         <span className="eyebrow">Room details</span>
         <h1 id="room-title" tabIndex={-1}>
-          {details ? `${details.building_code} ${details.room_number}` : 'Room details'}
+          {details ? roomLabel(details) : 'Room details'}
         </h1>
         {details && (
           <p>
@@ -323,11 +301,16 @@ export default function App() {
             UTSC<span className="brand-accent">Vacant</span>
           </span>
         </a>
-        <span className="header-note">
-          Room to think.
-          <br />
-          <strong>Toronto campus time</strong>
-        </span>
+        <ThemeControl />
+        <nav className="app-navigation" aria-label="Application">
+          <a
+            href="?"
+            onClick={(event) => routeClick(event, new URLSearchParams())}
+            aria-current={!location.roomId ? 'page' : undefined}
+          >
+            Find a room
+          </a>
+        </nav>
       </header>
       <aside className="provenance shell" id="data-note" aria-label="Data provenance">
         <span className="provenance-symbol" aria-hidden="true">
@@ -357,13 +340,13 @@ export default function App() {
               <div>
                 <p className="eyebrow">Find your next study spot</p>
                 <h1>
-                  A little room
-                  <br className="desktop-break" /> to focus.
+                  Find a room
+                  <br className="desktop-break" /> between classes.
                 </h1>
                 <p>
                   Check scheduled classroom availability.
                   <br />
-                  Choose a window. Let the timetable do the work.
+                  Choose a time. Make space for your next session.
                 </p>
               </div>
               <aside className="source-summary" aria-label="Schedule source status">

@@ -3,6 +3,8 @@ import test from 'node:test'
 import {
   campusDate,
   campusTime,
+  campusTimeLabel,
+  dateLabel,
   localCandidates,
   nextBookingLabel,
   toInstant,
@@ -42,13 +44,18 @@ test('impossible dates and malformed times are rejected', () => {
 })
 
 test('displayed bookings distinguish both occurrences of a repeated hour', () => {
-  assert.equal(nextBookingLabel('2026-11-01T05:30:00Z', '2026-11-01T04:00:00Z'), '01:30 GMT-04:00')
-  assert.equal(nextBookingLabel('2026-11-01T06:30:00Z', '2026-11-01T04:00:00Z'), '01:30 GMT-05:00')
+  assert.equal(nextBookingLabel('2026-11-01T05:30:00Z', '2026-11-01T04:00:00Z'), '1:30 AM EDT')
+  assert.equal(nextBookingLabel('2026-11-01T06:30:00Z', '2026-11-01T04:00:00Z'), '1:30 AM EST')
 })
 
 test('overnight endpoint labels include their campus date and offset', () => {
-  assert.match(
-    nextBookingLabel('2026-10-15T04:30:00Z', '2026-10-15T03:30:00Z'),
-    /Oct 15, 2026.*00:30 GMT-04:00/,
-  )
+  assert.match(nextBookingLabel('2026-10-15T04:30:00Z', '2026-10-15T03:30:00Z'), /Oct 15.*12:30 AM/)
+})
+
+test('friendly Toronto labels handle noon, midnight, summer and winter', () => {
+  assert.equal(campusTimeLabel('2026-07-01T16:00:00Z'), '12:00 PM')
+  assert.equal(campusTimeLabel('2026-12-01T17:00:00Z'), '12:00 PM')
+  assert.equal(campusTimeLabel('2026-10-15T04:00:00Z'), '12:00 AM')
+  assert.equal(dateLabel('2026-10-15T02:30:00Z'), 'Wed, Oct 14')
+  assert.match(nextBookingLabel('2027-01-01T05:30:00Z', '2027-01-01T04:30:00Z'), /2027.*12:30 AM/)
 })

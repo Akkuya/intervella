@@ -1,4 +1,4 @@
-# RoomFinder (UTSC)
+# Intervella (UTSC)
 
 Find an empty classroom at UTSC, right now, near you.
 

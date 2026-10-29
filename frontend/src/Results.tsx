@@ -14,6 +14,20 @@ export function Results({
   status?: StatusResponse
   params: URLSearchParams
 }) {
+  const overview =
+    params.get('include_next') === '1' ||
+    params.get('view') === 'saved' ||
+    result.data.some((room) => room.state !== 'available')
+  const counts = [
+    ['available', 'available for the requested time'],
+    ['scheduled', 'with scheduled conflicts'],
+    ['unknown', 'with unknown coverage'],
+    ['inactive', 'inactive'],
+  ]
+    .map(
+      ([state, label]) => `${result.data.filter((room) => room.state === state).length} ${label}`,
+    )
+    .join(' · ')
   return (
     <>
       <div className="time-strip">
@@ -38,13 +52,17 @@ export function Results({
         </p>
       )}
       <p className="result-count" role="status">
-        {result.data.length} {result.data.length === 1 ? 'room matches' : 'rooms match'} this search
+        {result.data.length} {result.data.length === 1 ? 'room shown' : 'rooms shown'}
+        {result.data.length > 0 && `: ${counts}`}
       </p>
       {result.data.length === 0 ? (
-        <EmptyState title="No matching rooms for this time">
+        <EmptyState
+          title={overview ? 'No room listings to show' : 'No matching rooms for this time'}
+        >
           <p>
-            No fully covered rooms match this search. Try another duration or building. This is not
-            a statement about every room on campus.
+            {overview
+              ? 'No room listings were returned for these filters. Check saved listings or try another room name or building.'
+              : 'No fully covered rooms match this search. Try another duration or building. This is not a statement about every room on campus.'}
           </p>
         </EmptyState>
       ) : (
@@ -114,7 +132,8 @@ export function Results({
       </p>
       {result.meta.has_more && (
         <p className="coverage-note">
-          More rooms match. Narrow the building or room filter; results are capped by the service.
+          More rooms were found. Narrow the building or room filter; results are capped by the
+          service.
         </p>
       )}
     </>

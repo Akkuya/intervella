@@ -15,6 +15,22 @@ export interface SearchInput {
   includeNext?: boolean
 }
 
+export class SearchSessionEnded extends Error {
+  readonly end: string
+  readonly state: 'ending' | 'expired'
+
+  constructor(end: string, remaining: number) {
+    super(
+      remaining <= 0
+        ? 'This session has expired. Choose a new end time or duration.'
+        : 'Fewer than five minutes remain. Choose a later end time or a duration.',
+    )
+    this.name = 'SearchSessionEnded'
+    this.end = end
+    this.state = remaining <= 0 ? 'expired' : 'ending'
+  }
+}
+
 export function readLocation(query: string, now = new Date()) {
   const params = new URLSearchParams(query)
   const view = params.get('view') ?? 'find'
@@ -42,6 +58,8 @@ export function readLocation(query: string, now = new Date()) {
       : undefined
   const scheduleDate = params.get('schedule_date') ?? search.date
   let error: string | undefined
+  let session: SearchSessionEnded | undefined
+  let sessionEnd: string | undefined
   if (!['find', 'buildings', 'saved'].includes(view))
     error = 'This page link is invalid. Return to the room search.'
   else if (room !== null && roomId === undefined)
@@ -60,13 +78,17 @@ export function readLocation(query: string, now = new Date()) {
       error = 'The saved search needs a date and time.'
     if (!error) {
       try {
-        requestParams(search, now)
+        const request = requestParams(search, now)
+        if (search.mode === 'now') sessionEnd = request.end
       } catch (cause) {
-        error = (cause as Error).message
+        if (cause instanceof SearchSessionEnded) {
+          session = cause
+          sessionEnd = cause.end
+        } else error = (cause as Error).message
       }
     }
   }
-  return { search, roomId, scheduleDate, error, view }
+  return { search, roomId, scheduleDate, error, view, session, sessionEnd }
 }
 
 export function searchParams(search: SearchInput): URLSearchParams {
@@ -98,6 +120,8 @@ export function requestParams(search: SearchInput, now = new Date()) {
   const end = until
     ? toInstant(search.endDate ?? '', search.endTime ?? '', search.endOffset)
     : undefined
+  if (end && search.mode === 'now' && Date.parse(end) - Date.parse(start) < 5 * 60_000)
+    throw new SearchSessionEnded(end, Date.parse(end) - Date.parse(start))
   if (
     end &&
     (Date.parse(end) - Date.parse(start) < 5 * 60_000 ||

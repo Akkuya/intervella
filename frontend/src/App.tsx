@@ -2,9 +2,21 @@ import { useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from './api.ts'
 import type { StatusResponse } from './api.ts'
-import { ErrorPanel, FreshnessNote, OfflinePanel, SearchForm } from './components.tsx'
-import { navigate, routeClick, useLocationSearch, useOnline } from './navigation.ts'
-import { readLocation, requestParams, searchParams } from './search.ts'
+import {
+  ErrorPanel,
+  FreshnessNote,
+  OfflinePanel,
+  SearchForm,
+  SessionNotice,
+} from './components.tsx'
+import {
+  navigate,
+  routeClick,
+  useLocationSearch,
+  useOnline,
+  useSearchLocation,
+} from './navigation.ts'
+import { requestParams, searchParams } from './search.ts'
 import type { SearchInput } from './search.ts'
 import { campusTimeLabel, dateLabel, nextBookingLabel } from './time.ts'
 import { ThemeControl } from './theme.tsx'
@@ -165,7 +177,7 @@ function RoomDetails({
 export default function App() {
   const query = useLocationSearch()
   const online = useOnline()
-  const location = readLocation(query)
+  const location = useSearchLocation(query)
   const previous = useRef({
     room: location.roomId,
     date: location.scheduleDate,
@@ -188,9 +200,14 @@ export default function App() {
   const result = useQuery({
     queryKey: ['availability', searchParams(location.search).toString(), status.data?.dataset_id],
     queryFn: ({ signal }) => api.roomSearch(requestParams(location.search), signal),
-    enabled: online && !location.error && location.roomId === undefined && location.view === 'find',
+    enabled:
+      online &&
+      !location.error &&
+      !location.session &&
+      location.roomId === undefined &&
+      location.view === 'find',
     staleTime: location.search.mode === 'now' ? 0 : Infinity,
-    refetchInterval: location.search.mode === 'now' ? 60_000 : false,
+    refetchInterval: location.search.mode === 'now' && !location.session ? 60_000 : false,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: location.search.mode === 'now',
     refetchOnReconnect: location.search.mode === 'now',
@@ -358,13 +375,20 @@ export default function App() {
                   <div>
                     <span className="eyebrow">Based on the published timetable</span>
                     <h2 id="results-title" tabIndex={-1}>
-                      Schedule available
+                      {location.session
+                        ? 'Search session'
+                        : location.search.includeNext ||
+                            result.data?.data.some((room) => room.state !== 'available')
+                          ? 'Room status'
+                          : 'Schedule available'}
                     </h2>
                   </div>
                   <button
                     type="button"
                     className="text-button"
-                    disabled={result.isFetching || !online || !!location.error}
+                    disabled={
+                      result.isFetching || !online || !!location.error || !!location.session
+                    }
                     onClick={() => {
                       void result.refetch()
                       void status.refetch()
@@ -379,6 +403,8 @@ export default function App() {
                     <p>{location.error}</p>
                     <p>Choose your search settings again to correct the link.</p>
                   </div>
+                ) : location.session ? (
+                  <SessionNotice session={location.session} />
                 ) : !online ? (
                   <OfflinePanel />
                 ) : result.isError ? (

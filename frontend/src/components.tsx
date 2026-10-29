@@ -4,6 +4,7 @@ import type { Building, Freshness, StatusResponse } from './api.ts'
 import { ApiError } from './api.ts'
 import type { SearchInput } from './search.ts'
 import { requestParams } from './search.ts'
+import type { SearchSessionEnded } from './search.ts'
 import {
   campusDate,
   campusTime,
@@ -38,6 +39,24 @@ export function OfflinePanel() {
       <p>
         Connect to the internet to check the schedule. Previous results are not a current
         availability confirmation.
+      </p>
+    </div>
+  )
+}
+
+export function SessionNotice({ session }: { session: SearchSessionEnded }) {
+  return (
+    <div className="state-panel notice warning" role="status">
+      <h3>{session.state === 'expired' ? 'Session expired' : 'Session ending'}</h3>
+      <p>
+        {session.state === 'expired'
+          ? 'Your selected end time has passed.'
+          : 'Fewer than five minutes remain before your selected end time.'}{' '}
+        End: {dateLabel(session.end)} at {campusTimeLabel(session.end)} Toronto time.
+      </p>
+      <p>
+        Live results are paused. Earlier room checks no longer confirm availability for this
+        session. Choose a later end time or switch to Duration to start a new search.
       </p>
     </div>
   )

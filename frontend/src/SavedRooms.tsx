@@ -3,9 +3,9 @@ import { api } from './api.ts'
 import type { Building, StatusResponse } from './api.ts'
 import { useFavourites } from './favourites.ts'
 import { FavouriteButton } from './FavouriteButton.tsx'
-import { readLocation, requestParams } from './search.ts'
-import { routeClick } from './navigation.ts'
-import { ErrorPanel, OfflinePanel } from './components.tsx'
+import { requestParams } from './search.ts'
+import { routeClick, useSearchLocation } from './navigation.ts'
+import { ErrorPanel, OfflinePanel, SessionNotice } from './components.tsx'
 import { EmptyState } from './ui.tsx'
 import { Results } from './Results.tsx'
 
@@ -23,7 +23,7 @@ export function SavedRooms({
   buildings: Building[]
 }) {
   const { value } = useFavourites()
-  const location = readLocation(query)
+  const location = useSearchLocation(query)
   const result = useQuery({
     queryKey: ['saved', value.rooms, query, status?.dataset_id],
     queryFn: ({ signal }) => {
@@ -39,9 +39,10 @@ export function SavedRooms({
         signal,
       )
     },
-    enabled: online && !location.error && !statusPending && value.rooms.length > 0,
+    enabled:
+      online && !location.error && !location.session && !statusPending && value.rooms.length > 0,
     staleTime: location.search.mode === 'now' ? 0 : Infinity,
-    refetchInterval: location.search.mode === 'now' ? 60_000 : false,
+    refetchInterval: location.search.mode === 'now' && !location.session ? 60_000 : false,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: location.search.mode === 'now',
     refetchOnReconnect: location.search.mode === 'now',
@@ -86,13 +87,15 @@ export function SavedRooms({
       ) : (
         <p>No buildings saved yet. Save one from Building schedules.</p>
       )}
-      <h2>Room availability</h2>
+      <h2>Room status</h2>
       {!value.rooms.length ? (
         <EmptyState title="No saved rooms yet">
           <p>Save a room from search results or room details.</p>
         </EmptyState>
       ) : location.error ? (
         <p role="alert">{location.error}</p>
+      ) : location.session ? (
+        <SessionNotice session={location.session} />
       ) : !online ? (
         <OfflinePanel />
       ) : result.isError ? (

@@ -36,9 +36,14 @@ removed from tracked branch history and are ignored to prevent accidental re-add
 
 Implements the database foundation from the Technical Requirements Document v1.0
 (October 14, 2026). Milestone 2 adds the availability service and REST endpoints
-described below. Source normalization, production publication, live fetching,
-frontend, recommendations, and authentication remain outside this milestone.
+described below; Milestone 3 supplies the React frontend. Live fetching,
+recommendations, authentication, and public deployment remain outside this milestone.
 The HTML parser stays independent of database models and configuration.
+
+Milestone 4 adds [seven-day local snapshot ingestion](INGESTION.md): strict parsing,
+scope validation, audited staging, anomaly reports and atomic publication. It extends
+coverage to multiple intervals while preserving the API contracts and original seed.
+Live fetching and authorization for public republication remain unresolved.
 
 SQLModel entities live in `app/models.py`. Alembic owns DDL; application startup
 must not use `metadata.create_all()`. Synchronous Psycopg 3 uses five connections

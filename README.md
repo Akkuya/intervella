@@ -93,7 +93,7 @@ The frontend proxies `/api` requests to the backend during development (see `vit
 
 ## Status
 
-Milestones 1–3 implemented: PostgreSQL foundation, public API, and React application. See [API contracts](backend/README.md#milestone-2-public-rest-api), [frontend guide](frontend/README.md), and [`docs/scope.md`](docs/scope.md). The fixed synthetic seed is not current campus data.
+Milestones 1–4 implemented: PostgreSQL foundation, public API, React application, and [seven-day local ingestion with atomic publication](backend/INGESTION.md). See [API contracts](backend/README.md#milestone-2-public-rest-api), [frontend guide](frontend/README.md), and [`docs/scope.md`](docs/scope.md). The fixed synthetic seed is not current campus data. Source access/republication authorization and public deployment remain separate requirements.
 
 ## Disclaimer
 

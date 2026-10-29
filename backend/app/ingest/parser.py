@@ -176,6 +176,12 @@ def _strict_building(building):
         header.get("rowspan", "1") != "1" or header.get("colspan", "1") != "1" for header in columns
     ):
         raise ValueError("Ambiguous room columns")
+    grid = _strict_grid(building, rooms)
+    return {"name": caption.get_text(strip=True), **grid}
+
+
+def _strict_grid(building, rooms):
+    """Shared day/room column proof; callers supply validated column identities."""
     rows = [row for row in building.find_all("tr") if row.find_parent("thead") is None]
     if not rows or len(rows) > 48:
         raise ValueError("Empty or oversized timetable")
@@ -254,7 +260,6 @@ def _strict_building(building):
         if cell_index != len(cells):
             raise ValueError("Unassigned room cells")
     return {
-        "name": caption.get_text(strip=True),
         "rooms": rooms,
         "row_minutes": [*minutes, minutes[-1] + 30],
     }

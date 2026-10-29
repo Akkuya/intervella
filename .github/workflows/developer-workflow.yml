@@ -1,0 +1,30 @@
+name: Developer workflow
+
+on:
+  pull_request:
+    paths: ['*.ps1', 'scripts/**', '.github/workflows/developer-workflow.yml']
+  push:
+    branches: [main, 'codex/**']
+    paths: ['*.ps1', 'scripts/**', '.github/workflows/developer-workflow.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: developer-workflow-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-2025
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Windows PowerShell 5.1 regression tests
+        shell: powershell
+        run: .\scripts\tests\workflow.tests.ps1
+      - name: PowerShell 7 regression tests
+        shell: pwsh
+        run: .\scripts\tests\workflow.tests.ps1

@@ -24,12 +24,15 @@ from app.errors import APIError
 from app.schemas import (
     AvailabilityParams,
     AvailabilityResponse,
+    BuildingScheduleResponse,
     BuildingsResponse,
     ErrorDetail,
     ErrorResponse,
     LiveResponse,
     ReadyResponse,
     RoomResponse,
+    RoomSearchParams,
+    RoomSearchResponse,
     ScheduleParams,
     ScheduleResponse,
     StatusResponse,
@@ -195,6 +198,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def buildings(session: ReadSession) -> BuildingsResponse:
         return availability.list_buildings(session)
 
+    @app.get("/api/v1/room-search", response_model=RoomSearchResponse)
+    def room_search(
+        request: Request,
+        query: Annotated[RoomSearchParams, Query()],
+        session: ReadSession,
+        now: Annotated[datetime, Depends(utc_now)],
+        config: Annotated[Settings, Depends(get_settings)],
+    ) -> RoomSearchResponse:
+        from app.services.room_search import search_rooms
+
+        if not query.room_ids:
+            if "limit" not in request.query_params:
+                query.limit = min(query.limit, config.max_availability_limit)
+            if query.limit > config.max_availability_limit:
+                raise APIError(
+                    422, "invalid_request", "Result limit exceeds server limit.", ["limit"]
+                )
+        result = search_rooms(session, query, now, config.freshness_max_age_hours)
+        request.state.dataset_id = str(result.meta.dataset_id)
+        return result
+
     @app.get("/api/v1/rooms/{room_id}", response_model=RoomResponse)
     def room(room_id: RoomID, session: ReadSession) -> RoomResponse:
         return RoomResponse(data=availability.room_details(session, room_id))
@@ -223,6 +247,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     ) -> StatusResponse:
         result = availability.dataset_status(session, now, config.freshness_max_age_hours)
         request.state.dataset_id = str(result.dataset_id)
+        return result
+
+    @app.get("/api/v1/buildings/{code}/schedule", response_model=BuildingScheduleResponse)
+    def building_day(
+        request: Request,
+        code: Annotated[str, Path(min_length=1, max_length=32)],
+        query: Annotated[ScheduleParams, Query()],
+        session: ReadSession,
+        now: Annotated[datetime, Depends(utc_now)],
+        config: Annotated[Settings, Depends(get_settings)],
+    ) -> BuildingScheduleResponse:
+        from app.services.calendar import building_schedule
+
+        result = building_schedule(session, code, query.date, now, config.freshness_max_age_hours)
+        request.state.dataset_id = str(result.meta.dataset_id)
         return result
 
     @app.get("/health/ready", response_model=ReadyResponse)

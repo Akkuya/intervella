@@ -1,84 +1,32 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from './api.ts'
-import type { AvailabilityResponse, StatusResponse } from './api.ts'
-import { ErrorPanel, FreshnessNote, OfflinePanel, SearchForm } from './components.tsx'
-import { navigate, routeClick, useLocationSearch, useOnline } from './navigation.ts'
-import { readLocation, requestParams, searchParams } from './search.ts'
+import type { StatusResponse } from './api.ts'
+import {
+  ErrorPanel,
+  FreshnessNote,
+  OfflinePanel,
+  SearchForm,
+  SessionNotice,
+} from './components.tsx'
+import {
+  navigate,
+  routeClick,
+  useLocationSearch,
+  useOnline,
+  useSearchLocation,
+} from './navigation.ts'
+import { requestParams, searchParams } from './search.ts'
 import type { SearchInput } from './search.ts'
-import { campusTimeLabel, dateLabel, validDate, nextBookingLabel } from './time.ts'
+import { campusTimeLabel, dateLabel, nextBookingLabel } from './time.ts'
 import { ThemeControl } from './theme.tsx'
 import { roomLabel } from './rooms.ts'
-import { Badge, EmptyState, RoomCard } from './ui.tsx'
+import { Results } from './Results.tsx'
+import { SavedRooms } from './SavedRooms.tsx'
+import { FavouriteButton } from './FavouriteButton.tsx'
+import { Calendar, CalendarDate, MeetingList } from './Calendar.tsx'
+import { BuildingSchedules } from './BuildingSchedules.tsx'
 import './App.css'
-
-function Results({
-  result,
-  status,
-  params,
-}: {
-  result: AvailabilityResponse
-  status?: StatusResponse
-  params: URLSearchParams
-}) {
-  return (
-    <>
-      <div className="time-strip">
-        <span className="eyebrow">Search window · Toronto</span>
-        <strong className="tabular-nums">
-          {campusTimeLabel(result.query.start)} <span aria-hidden="true">—</span>
-          <span className="sr-only"> to </span>{' '}
-          {nextBookingLabel(result.query.end, result.query.start)}
-        </strong>
-        <span>{dateLabel(result.query.start)}</span>
-      </div>
-      <FreshnessNote meta={result.meta} status={status} />
-      {result.meta.unknown_room_count > 0 && (
-        <p className="coverage-note" role="status">
-          <strong>{result.meta.unknown_room_count} rooms excluded</strong> because coverage is
-          incomplete, unknown, or too short for this search.
-        </p>
-      )}
-      <p className="result-count" role="status">
-        {result.data.length} {result.data.length === 1 ? 'room matches' : 'rooms match'} this search
-      </p>
-      {result.data.length === 0 ? (
-        <EmptyState title="No matching rooms for this time">
-          <p>
-            No fully covered rooms match this search. Try another duration or building. This is not
-            a statement about every room on campus.
-          </p>
-        </EmptyState>
-      ) : (
-        <div className="room-grid">
-          {result.data.map((room) => (
-            <RoomCard
-              room={room}
-              params={params}
-              key={room.room_id}
-              status={<Badge tone="green">Schedule available</Badge>}
-            >
-              <div className="booking">
-                <span>Next scheduled booking</span>
-                <strong>
-                  {room.next_booking
-                    ? nextBookingLabel(room.next_booking, result.query.start)
-                    : 'No later booking known'}
-                </strong>
-              </div>
-            </RoomCard>
-          ))}
-        </div>
-      )}
-      {result.meta.has_more && (
-        <p className="coverage-note">
-          More rooms match. Narrow the building filter to see a smaller set; results are capped by
-          the service.
-        </p>
-      )}
-    </>
-  )
-}
 
 function RoomDetails({
   id,
@@ -93,8 +41,6 @@ function RoomDetails({
   online: boolean
   query: string
 }) {
-  const [day, setDay] = useState(date)
-  const [dateError, setDateError] = useState('')
   const room = useQuery({
     queryKey: ['room', id, status?.dataset_id],
     queryFn: ({ signal }) => api.room(id, signal),
@@ -110,11 +56,11 @@ function RoomDetails({
   const details = schedule.data?.room ?? room.data?.data
   const back = new URLSearchParams(query)
   back.delete('room')
-  back.delete('schedule_date')
+  if (back.get('view') !== 'buildings') back.delete('schedule_date')
   return (
     <section className="room-detail" aria-labelledby="room-title">
       <a className="back-link" href={`?${back}`} onClick={(event) => routeClick(event, back)}>
-        ← Back to results
+        ← {back.get('view') === 'buildings' ? 'Back to building schedules' : 'Back to results'}
       </a>
       <div className="detail-heading">
         <span className="eyebrow">Room details</span>
@@ -126,6 +72,9 @@ function RoomDetails({
             {details.capacity === null ? 'Capacity not published' : `${details.capacity} seats`}
             {!details.active && ' · Inactive listing'}
           </p>
+        )}
+        {details && (
+          <FavouriteButton kind="rooms" id={details.room_id} label={roomLabel(details)} />
         )}
       </div>
       {!online ? (
@@ -148,37 +97,14 @@ function RoomDetails({
                   Room schedule
                 </h2>
               </div>
-              <form
-                className="schedule-form"
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  if (!validDate(day)) {
-                    setDateError('Choose a valid date.')
-                    return
-                  }
-                  const params = new URLSearchParams(query)
-                  params.set('schedule_date', day)
-                  if (!navigate(params)) void schedule.refetch()
+              <CalendarDate
+                date={date}
+                query={query}
+                onRefresh={() => {
+                  void schedule.refetch()
                 }}
-              >
-                <label>
-                  Schedule date
-                  <input
-                    type="date"
-                    value={day}
-                    required
-                    onChange={(event) => {
-                      setDay(event.target.value)
-                      setDateError('')
-                    }}
-                  />
-                </label>
-                <button className="button secondary" type="submit">
-                  Show schedule
-                </button>
-              </form>
+              />
             </div>
-            {dateError && <p role="alert">{dateError}</p>}
             {schedule.isError ? (
               <ErrorPanel
                 error={schedule.error}
@@ -202,27 +128,33 @@ function RoomDetails({
                     empty schedule does not establish availability.
                   </p>
                 )}
+                {schedule.data.calendar ? (
+                  <Calendar
+                    entries={[
+                      {
+                        room: schedule.data.room,
+                        meetings: schedule.data.data,
+                        calendar: schedule.data.calendar,
+                      },
+                    ]}
+                    window={schedule.data.calendar.window}
+                    date={date}
+                    query={query}
+                  />
+                ) : (
+                  <p className="notice warning">
+                    Calendar details unavailable. Use the schedule list; missing coverage is never
+                    free.
+                  </p>
+                )}
                 {schedule.data.data.length ? (
-                  <ol className="meeting-list" aria-label="Scheduled meetings">
-                    {schedule.data.data.map((meeting) => (
-                      <li key={meeting.id}>
-                        <div>
-                          <time dateTime={meeting.starts_at}>
-                            {nextBookingLabel(meeting.starts_at, schedule.data.query.start)}
-                          </time>
-                          <span> – </span>
-                          <time dateTime={meeting.ends_at}>
-                            {nextBookingLabel(meeting.ends_at, meeting.starts_at)}
-                          </time>
-                        </div>
-                        <span
-                          className={`badge ${meeting.status === 'cancelled' ? 'neutral' : ''}`}
-                        >
-                          {meeting.status === 'cancelled' ? 'Cancelled' : 'Scheduled'}
-                        </span>
-                      </li>
-                    ))}
-                  </ol>
+                  <details className="schedule-list">
+                    <summary>Accessible schedule list</summary>
+                    <MeetingList
+                      meetings={schedule.data.data}
+                      reference={schedule.data.query.start}
+                    />
+                  </details>
                 ) : (
                   <div className="state-panel">
                     <h3>No meetings listed</h3>
@@ -245,8 +177,12 @@ function RoomDetails({
 export default function App() {
   const query = useLocationSearch()
   const online = useOnline()
-  const location = readLocation(query)
-  const previous = useRef({ room: location.roomId, date: location.scheduleDate })
+  const location = useSearchLocation(query)
+  const previous = useRef({
+    room: location.roomId,
+    date: location.scheduleDate,
+    view: location.view,
+  })
   const status = useQuery({
     queryKey: ['status'],
     queryFn: ({ signal }) => api.status(signal),
@@ -263,10 +199,15 @@ export default function App() {
   })
   const result = useQuery({
     queryKey: ['availability', searchParams(location.search).toString(), status.data?.dataset_id],
-    queryFn: ({ signal }) => api.availability(requestParams(location.search), signal),
-    enabled: online && !location.error && location.roomId === undefined,
+    queryFn: ({ signal }) => api.roomSearch(requestParams(location.search), signal),
+    enabled:
+      online &&
+      !location.error &&
+      !location.session &&
+      location.roomId === undefined &&
+      location.view === 'find',
     staleTime: location.search.mode === 'now' ? 0 : Infinity,
-    refetchInterval: location.search.mode === 'now' ? 60_000 : false,
+    refetchInterval: location.search.mode === 'now' && !location.session ? 60_000 : false,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: location.search.mode === 'now',
     refetchOnReconnect: location.search.mode === 'now',
@@ -278,8 +219,18 @@ export default function App() {
       ;(document.getElementById(target) ?? document.getElementById('results-title'))?.focus()
     } else if (location.roomId && old.date !== location.scheduleDate)
       document.getElementById('schedule-title')?.focus()
-    previous.current = { room: location.roomId, date: location.scheduleDate }
-  }, [location.roomId, location.scheduleDate])
+    else if (old.view !== location.view) document.getElementById('page-title')?.focus()
+    previous.current = { room: location.roomId, date: location.scheduleDate, view: location.view }
+  }, [location.roomId, location.scheduleDate, location.view])
+  const findParams = new URLSearchParams(query)
+  findParams.delete('view')
+  findParams.delete('room')
+  findParams.delete('schedule_date')
+  const calendarParams = new URLSearchParams(findParams)
+  calendarParams.set('view', 'buildings')
+  calendarParams.set('schedule_date', location.scheduleDate)
+  const savedParams = new URLSearchParams(findParams)
+  savedParams.set('view', 'saved')
   const onSearch = (input: SearchInput) => {
     const params = searchParams(input)
     const unchanged = params.toString() === searchParams(location.search).toString()
@@ -304,11 +255,25 @@ export default function App() {
         <ThemeControl />
         <nav className="app-navigation" aria-label="Application">
           <a
-            href="?"
-            onClick={(event) => routeClick(event, new URLSearchParams())}
-            aria-current={!location.roomId ? 'page' : undefined}
+            href={`?${findParams}`}
+            onClick={(event) => routeClick(event, findParams)}
+            aria-current={!location.roomId && location.view === 'find' ? 'page' : undefined}
           >
             Find a room
+          </a>
+          <a
+            href={`?${calendarParams}`}
+            onClick={(event) => routeClick(event, calendarParams)}
+            aria-current={!location.roomId && location.view === 'buildings' ? 'page' : undefined}
+          >
+            Building schedules
+          </a>
+          <a
+            href={`?${savedParams}`}
+            onClick={(event) => routeClick(event, savedParams)}
+            aria-current={!location.roomId && location.view === 'saved' ? 'page' : undefined}
+          >
+            Saved rooms
           </a>
         </nav>
       </header>
@@ -334,12 +299,33 @@ export default function App() {
             online={online}
             query={query}
           />
+        ) : location.view === 'saved' ? (
+          <SavedRooms
+            query={query}
+            online={online}
+            status={status.data}
+            statusPending={status.isPending}
+            buildings={buildings.data?.data ?? []}
+          />
+        ) : location.view === 'buildings' ? (
+          <BuildingSchedules
+            query={query}
+            buildings={buildings.data?.data ?? []}
+            status={status.data}
+            online={online}
+            loading={buildings.isPending}
+            error={buildings.error}
+            reloadBuildings={() => {
+              void buildings.refetch()
+            }}
+            statusPending={status.isPending}
+          />
         ) : (
           <>
             <div className="intro">
               <div>
                 <p className="eyebrow">Find your next study spot</p>
-                <h1>
+                <h1 id="page-title" tabIndex={-1}>
                   Find a room
                   <br className="desktop-break" /> between classes.
                 </h1>
@@ -389,13 +375,20 @@ export default function App() {
                   <div>
                     <span className="eyebrow">Based on the published timetable</span>
                     <h2 id="results-title" tabIndex={-1}>
-                      Schedule available
+                      {location.session
+                        ? 'Search session'
+                        : location.search.includeNext ||
+                            result.data?.data.some((room) => room.state !== 'available')
+                          ? 'Room status'
+                          : 'Schedule available'}
                     </h2>
                   </div>
                   <button
                     type="button"
                     className="text-button"
-                    disabled={result.isFetching || !online || !!location.error}
+                    disabled={
+                      result.isFetching || !online || !!location.error || !!location.session
+                    }
                     onClick={() => {
                       void result.refetch()
                       void status.refetch()
@@ -410,6 +403,8 @@ export default function App() {
                     <p>{location.error}</p>
                     <p>Choose your search settings again to correct the link.</p>
                   </div>
+                ) : location.session ? (
+                  <SessionNotice session={location.session} />
                 ) : !online ? (
                   <OfflinePanel />
                 ) : result.isError ? (

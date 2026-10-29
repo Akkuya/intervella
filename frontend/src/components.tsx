@@ -4,6 +4,7 @@ import type { Building, Freshness, StatusResponse } from './api.ts'
 import { ApiError } from './api.ts'
 import type { SearchInput } from './search.ts'
 import { requestParams } from './search.ts'
+import type { SearchSessionEnded } from './search.ts'
 import {
   campusDate,
   campusTime,
@@ -38,6 +39,24 @@ export function OfflinePanel() {
       <p>
         Connect to the internet to check the schedule. Previous results are not a current
         availability confirmation.
+      </p>
+    </div>
+  )
+}
+
+export function SessionNotice({ session }: { session: SearchSessionEnded }) {
+  return (
+    <div className="state-panel notice warning" role="status">
+      <h3>{session.state === 'expired' ? 'Session expired' : 'Session ending'}</h3>
+      <p>
+        {session.state === 'expired'
+          ? 'Your selected end time has passed.'
+          : 'Fewer than five minutes remain before your selected end time.'}{' '}
+        End: {dateLabel(session.end)} at {campusTimeLabel(session.end)} Toronto time.
+      </p>
+      <p>
+        Live results are paused. Earlier room checks no longer confirm availability for this
+        session. Choose a later end time or switch to Duration to start a new search.
       </p>
     </div>
   )
@@ -95,6 +114,14 @@ export function SearchForm({
   const [value, setValue] = useState(initial)
   const [error, setError] = useState('')
   let candidates: ReturnType<typeof localCandidates> = []
+  let endCandidates: ReturnType<typeof localCandidates> = []
+  if (value.endDate && value.endTime) {
+    try {
+      endCandidates = localCandidates(value.endDate, value.endTime)
+    } catch {
+      /* Validate on submit. */
+    }
+  }
   if (value.mode === 'custom') {
     try {
       candidates = localCandidates(value.date, value.time)
@@ -211,18 +238,79 @@ export function SearchForm({
         All dates and times use Toronto time (ET).
       </p>
       <label>
-        Duration
+        Search length
         <select
-          value={value.duration}
-          onChange={(event) => update({ duration: Number(event.target.value) })}
+          value={value.endDate !== undefined ? 'until' : 'duration'}
+          onChange={(event) =>
+            update(
+              event.target.value === 'until'
+                ? { endDate: value.date, endTime: '', endOffset: '' }
+                : { endDate: undefined, endTime: undefined, endOffset: undefined },
+            )
+          }
         >
-          {durations.map((minutes) => (
-            <option key={minutes} value={minutes}>
-              {minutes} minutes
-            </option>
-          ))}
+          <option value="duration">Duration</option>
+          <option value="until">Available until</option>
         </select>
       </label>
+      {value.endDate !== undefined ? (
+        <>
+          <div className="field-row">
+            <label>
+              End date
+              <input
+                type="date"
+                required
+                value={value.endDate}
+                onChange={(event) => update({ endDate: event.target.value, endOffset: '' })}
+              />
+            </label>
+            <label>
+              Available until
+              <input
+                type="time"
+                required
+                value={value.endTime ?? ''}
+                onChange={(event) => update({ endTime: event.target.value, endOffset: '' })}
+              />
+            </label>
+          </div>
+          {endCandidates.length > 1 && (
+            <label>
+              End time occurrence
+              <select
+                value={value.endOffset ?? ''}
+                onChange={(event) => update({ endOffset: event.target.value })}
+              >
+                <option value="">Choose an occurrence</option>
+                {endCandidates.map((candidate, index) => (
+                  <option key={candidate.offset} value={candidate.offset}>
+                    {index === 0 ? 'First' : 'Second'} occurrence ({zoneLabel(candidate.instant)})
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <p className="small">
+            Choose an end 5–240 minutes after the start, in Toronto time. Midnight may use the next
+            date.
+          </p>
+        </>
+      ) : (
+        <label>
+          Duration
+          <select
+            value={value.duration}
+            onChange={(event) => update({ duration: Number(event.target.value) })}
+          >
+            {durations.map((minutes) => (
+              <option key={minutes} value={minutes}>
+                {minutes} minutes
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <label>
         Building
         <select
@@ -243,6 +331,35 @@ export function SearchForm({
       {buildingsError && (
         <p className="small">Building list unavailable. You can still search all buildings.</p>
       )}
+      <label>
+        Room name
+        <input
+          type="search"
+          maxLength={64}
+          placeholder="e.g. AA112 or AA-112"
+          value={value.roomName ?? ''}
+          onChange={(event) => update({ roomName: event.target.value })}
+        />
+      </label>
+      <label>
+        Sort rooms
+        <select
+          value={value.sort ?? 'building'}
+          onChange={(event) => update({ sort: event.target.value as SearchInput['sort'] })}
+        >
+          <option value="building">Building, then room</option>
+          <option value="room">Room number</option>
+          <option value="duration">Longest known availability</option>
+        </select>
+      </label>
+      <label className="toggle-control">
+        <input
+          type="checkbox"
+          checked={value.includeNext ?? false}
+          onChange={(event) => update({ includeNext: event.target.checked })}
+        />
+        Include other rooms and next known openings
+      </label>
       <p id="search-error" className="form-error" role={error ? 'alert' : undefined}>
         {error}
       </p>

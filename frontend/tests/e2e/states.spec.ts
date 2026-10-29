@@ -10,7 +10,7 @@ for (const url of ['/', '/?mode=custom&date=2026-10-14&time=09%3A00']) {
   test(`explicit unchanged search refetches while normalizing ${url}`, async ({ page }) => {
     let requests = 0
     page.on('request', (request) => {
-      if (request.url().includes('/availability')) requests++
+      if (request.url().includes('/room-search')) requests++
     })
     await page.goto(url)
     await expect(page.getByRole('link', { name: 'View SYN-A-101' })).toBeVisible()
@@ -25,8 +25,18 @@ test('search windows distinguish repeated times and overnight end dates', async 
   page,
 }, testInfo) => {
   let query = { ...available.query, start: '2026-11-01T05:30:00Z', end: '2026-11-01T06:30:00Z' }
-  await page.route('**/api/v1/availability*', (route) =>
-    route.fulfill({ json: { ...available, query } }),
+  await page.route('**/api/v1/room-search*', (route) =>
+    route.fulfill({
+      json: {
+        ...available,
+        query,
+        data: available.data.map((room) => ({
+          ...room,
+          available_until: query.end,
+          next_available_start: query.start,
+        })),
+      },
+    }),
   )
   await page.goto('/?mode=custom&date=2026-11-01&time=01%3A30&offset=-04%3A00')
   await expect(page.locator('.time-strip')).toContainText('1:30 AM EDT')
@@ -42,7 +52,7 @@ test('search windows distinguish repeated times and overnight end dates', async 
 })
 
 test('service connection failure is distinct from browser offline', async ({ page }) => {
-  await page.route('**/api/v1/availability*', (route) => route.abort('failed'))
+  await page.route('**/api/v1/room-search*', (route) => route.abort('failed'))
   await page.goto('/')
   await expect(
     page.getByText('Could not reach the schedule service.', { exact: false }),
@@ -74,20 +84,20 @@ test('custom query restores URL and sends Toronto instant, duration and building
   await page.goto('/?mode=custom&date=2026-10-14&time=10%3A30&duration=90&building=SYN-A')
   await expect(page.getByLabel('Choose a time')).toBeChecked()
   await expect(page.getByLabel('Start time')).toHaveValue('10:30')
-  await expect(page.getByLabel('Duration')).toHaveValue('90')
+  await expect(page.getByRole('combobox', { name: 'Duration', exact: true })).toHaveValue('90')
   const request = page.waitForRequest(
     (item) =>
-      item.url().includes('/availability') &&
+      item.url().includes('/room-search') &&
       new URL(item.url()).searchParams.get('duration_minutes') === '30',
   )
-  await page.getByLabel('Duration').selectOption('30')
+  await page.getByRole('combobox', { name: 'Duration', exact: true }).selectOption('30')
   await page.getByRole('button', { name: 'Find rooms' }).click()
   const params = new URL((await request).url()).searchParams
   expect(params.get('start')).toBe('2026-10-14T14:30:00.000Z')
   expect(params.get('building')).toBe('SYN-A')
   await expect(page).toHaveURL(/duration=30/)
   await page.reload()
-  await expect(page.getByLabel('Duration')).toHaveValue('30')
+  await expect(page.getByRole('combobox', { name: 'Duration', exact: true })).toHaveValue('30')
 })
 
 test('loading is distinct from no matching rooms', async ({ page }) => {
@@ -95,7 +105,7 @@ test('loading is distinct from no matching rooms', async ({ page }) => {
   const gate = new Promise<void>((resolve) => {
     release = resolve
   })
-  await page.route('**/api/v1/availability*', async (route) => {
+  await page.route('**/api/v1/room-search*', async (route) => {
     await gate
     await route
       .fulfill({
@@ -117,7 +127,7 @@ test('loading is distinct from no matching rooms', async ({ page }) => {
 })
 
 test('newer stale result is not masked by an older fresh status response', async ({ page }) => {
-  await page.route('**/api/v1/availability*', (route) =>
+  await page.route('**/api/v1/room-search*', (route) =>
     route.fulfill({
       json: {
         ...available,
@@ -139,7 +149,7 @@ test('newer stale result is not masked by an older fresh status response', async
 test('coverage error does not become empty or available rooms and server details are safe', async ({
   page,
 }) => {
-  await page.route('**/api/v1/availability*', (route) =>
+  await page.route('**/api/v1/room-search*', (route) =>
     route.fulfill({
       status: 503,
       json: { error: { code: 'coverage_unavailable', message: 'SQL password=private' } },
@@ -172,7 +182,7 @@ test('superseded responses cannot replace a newer search', async ({ page }) => {
   const gate = new Promise<void>((resolve) => {
     release = resolve
   })
-  await page.route('**/api/v1/availability*', async (route) => {
+  await page.route('**/api/v1/room-search*', async (route) => {
     if (new URL(route.request().url()).searchParams.get('building') !== 'SYN-B') {
       await gate
       await route.fulfill({ json: available }).catch(() => {})
@@ -180,8 +190,10 @@ test('superseded responses cannot replace a newer search', async ({ page }) => {
   })
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Checking the schedule…' })).toBeVisible()
-  await expect(page.getByLabel('Building').locator('option[value="SYN-B"]')).toBeAttached()
-  await page.getByLabel('Building').selectOption('SYN-B')
+  await expect(
+    page.getByRole('combobox', { name: 'Building', exact: true }).locator('option[value="SYN-B"]'),
+  ).toBeAttached()
+  await page.getByRole('combobox', { name: 'Building', exact: true }).selectOption('SYN-B')
   await page.getByRole('button', { name: 'Find rooms' }).click()
   await expect(page.getByRole('link', { name: 'View SYN-B-205' })).toBeVisible()
   release()
@@ -204,7 +216,7 @@ test('DST gap is rejected and repeated time requires explicit offset', async ({ 
   await page.getByLabel('Time occurrence').selectOption('-05:00')
   const request = page.waitForRequest(
     (item) =>
-      item.url().includes('/availability') &&
+      item.url().includes('/room-search') &&
       new URL(item.url()).searchParams.get('start') === '2026-11-01T06:30:00.000Z',
   )
   await page.getByRole('button', { name: 'Find rooms' }).click()
@@ -220,6 +232,17 @@ test('unknown room schedule never implies availability and remains accessible', 
       json: {
         ...schedule,
         data: [],
+        calendar: {
+          window: schedule.calendar!.window,
+          coverage: [],
+          periods: [
+            {
+              starts_at: schedule.calendar!.window.start,
+              ends_at: schedule.calendar!.window.end,
+              state: 'unknown',
+            },
+          ],
+        },
         meta: {
           ...schedule.meta,
           coverage: { completeness: 'unknown', starts_at: null, ends_at: null },
@@ -233,6 +256,7 @@ test('unknown room schedule never implies availability and remains accessible', 
     page.getByText('Do not assume this room is available.', { exact: false }),
   ).toBeVisible()
   await expect(page.getByText('Coverage is unknown.', { exact: false })).toBeVisible()
+  await expect(page.locator('.calendar-period.available')).toHaveCount(0)
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
   await page.screenshot({ path: testInfo.outputPath('room.png'), fullPage: true })
 })
@@ -259,14 +283,14 @@ test('Now refreshes at 60 seconds while a fixed search waits for dataset change'
   await expect(page.getByRole('link', { name: 'View SYN-A-101' })).toBeVisible()
   const next = page.waitForRequest(
     (item) =>
-      item.url().includes('/availability') &&
+      item.url().includes('/room-search') &&
       Date.parse(new URL(item.url()).searchParams.get('start')!) >= Date.parse(NOW) + 60_000,
   )
   await page.clock.fastForward(60_000)
   await next
   let count = 0
   page.on('request', (item) => {
-    if (item.url().includes('/availability')) count++
+    if (item.url().includes('/room-search')) count++
   })
   await page.goto('/?mode=custom&date=2026-10-14&time=09%3A00&duration=60')
   await expect(page.getByRole('link', { name: 'View SYN-A-101' })).toBeVisible()
@@ -278,7 +302,7 @@ test('Now refreshes at 60 seconds while a fixed search waits for dataset change'
   await page.route('**/api/v1/status', (route) =>
     route.fulfill({ json: { ...status, dataset_id: 'new-version' } }),
   )
-  const changed = page.waitForRequest((item) => item.url().includes('/availability'))
+  const changed = page.waitForRequest((item) => item.url().includes('/room-search'))
   await page.clock.fastForward(60_000)
   await changed
 })

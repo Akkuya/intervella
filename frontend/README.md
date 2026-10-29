@@ -15,7 +15,8 @@ Requirements: Node 22.18+ and npm. Backend/database setup remains in [backend/RE
 Start the existing backend in one terminal:
 
 ```powershell
-Set-Location C:/Dev/utscVacant/.worktrees/react-frontend/backend
+$repoPath = git rev-parse --show-toplevel
+Set-Location "$repoPath/backend"
 uv sync --locked
 $env:DATABASE_URL = 'postgresql+psycopg://postgres@127.0.0.1:55433/utscvacant_dev'
 uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
@@ -26,7 +27,8 @@ This example uses the disposable local PostgreSQL container from the backend gui
 Start the frontend in another terminal:
 
 ```powershell
-Set-Location C:/Dev/utscVacant/.worktrees/react-frontend/frontend
+$repoPath = git rev-parse --show-toplevel
+Set-Location "$repoPath/frontend"
 npm.cmd ci
 npm.cmd run dev -- --port 5173
 ```
@@ -94,6 +96,43 @@ Authorized ingestion, provenance, production deployment/TLS/role checks, and bro
 
 Appearance offers Light, Dark and System (default). Only the selected preference is stored under `utscvacant.appearance`; blocked storage still allows changes for the session. The small bootstrap in index.html applies the saved/OS choice before the application loads; a deployment CSP must permit that bootstrap using a hash or equivalent policy. No third-party fonts or UI framework were added.
 
-Full room labels consistently combine the API's building code and room number, including basement identifiers. Friendly times always use America/Toronto, independent of device timezone; EDT/EST is shown when a repeated hour needs disambiguation. Source details remain available in an expandable disclosure. The current API does not prove a free-until bound, so these cards continue to show only the next known booking.
+Full room labels consistently combine the API's building code and room number, including basement identifiers. Friendly times always use America/Toronto, independent of device timezone; EDT/EST is shown when a repeated hour needs disambiguation. Source details remain available in an expandable disclosure. Milestone 5C adds server-proven free-until bounds; null next booking still never establishes unlimited availability.
 
 Manual synthetic checks: run `npm.cmd run build` then `npm.cmd run test:e2e -- --project=desktop --headed`. Change Appearance through all options, reload, change the OS preference with System selected, open a room, and use browser Back. Check the full room label, compact source details, focus and midnight/repeated-hour labels. The mobile project exercises the same interactions at a narrow viewport. Playwright captures light search and dark search screenshots in test-results; the frontend CI uploads them in frontend-browser-results. Only synthetic fixtures are used. Physical-device and manual screen-reader verification are not claimed.
+
+## Milestone 5B: calendars
+
+Building schedules selects a building and Toronto date using one bounded batch request. Room details use the same server-derived periods. Available, scheduled and unknown states have text as well as color; coverage gaps stay unknown. Horizontal scrolling keeps room labels visible on mobile. The current-time marker appears on today's rows. The accessible schedule list remains available beneath the timeline.
+
+Show scheduled events persists locally. Switching it off hides annotations without hiding occupied time. Select a block with mouse or keyboard to open its interval dialog; Escape closes it and returns focus. Current data supplies timing/status only: labels are Scheduled event or Cancelled event. Actual course names require a separately authorized source and are not implemented.
+
+Manual synthetic checks: open a result, toggle event annotations, select a cancelled event and press Escape, change/step the date, then open Building schedules and follow a room/back link. Check unknown rows, narrow-screen horizontal scrolling and dark mode. Browser tests capture room-calendar.png, building-calendar.png and calendar-scale-dark.png under ignored test-results and CI artifacts. No private captures are used.
+
+## Milestone 5C: search and favourites
+
+Search length offers Duration or Available until with an explicit end date/time. Both ends use Toronto time and require occurrence selection during a repeated hour; windows remain 5–240 elapsed minutes. Room name matches normalized building/room identifiers (AA112 / AA-112), and sorting is performed by the API before limiting results. Include other rooms and next known openings shows scheduled/unknown listings without claiming they are currently available. Free-until and next-known-opening values are supplied by the API, never calculated from missing events in the browser. The 24-hour lookahead and unknown-gap limitations are stated in the UI.
+
+Save rooms on cards or room details, and buildings on Building schedules. Saved rooms checks all IDs in one request using the current search time/duration, ignoring building/name filters. Choose Change search time to edit that window. Missing and inactive listings are explicit and can be removed; historical room details remain accessible. Only bounded IDs/codes are stored in `utscvacant.favourites` (100 rooms, 50 buildings). Availability is never persisted. Blocked storage permits session-only favourites; this is not cross-device sync.
+
+Manual synthetic checks: choose a custom start, switch Search length to Available until, set the end, name and sort, submit and reload the bookmarked URL. Try midnight and both repeated-hour offsets. Enable next known openings and inspect unknown/conflicting rooms. Save two rooms and a building, open Saved rooms, reload, change the search time, and remove them. Go offline and ensure cached results stop claiming current availability. Inspect the same flows in dark mode and a narrow viewport. Browser tests generate smart-search.png and saved-rooms.png alongside the calendar screenshots in CI artifacts.
+
+For the complete current gate from the frontend directory:
+
+```powershell
+npm.cmd ci
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run typecheck
+npm.cmd test
+npm.cmd run build
+npx.cmd playwright install chromium
+npm.cmd run test:e2e
+```
+
+Backend verification remains `uv run pytest --require-postgres`, Ruff and mypy using a disposable test database (see the backend guide). No development clock override or live-campus demo fallback was added. The immutable synthetic seed remains fixed in time; controlled test fixtures exercise the current API separately.
+
+Calendar navigation remains valid when a retained Now/until search expires. The room back link retains the selected building-calendar day, and building controls keep focus during date/building changes. Saved Now checks refresh on visibility return and reconnect, matching Find a room; fixed-time checks refresh when the published dataset changes.
+
+Mixed search results use Room status and explicit counts for available, scheduled-conflict, unknown and inactive listings; the per-room badges remain authoritative. Include-next never labels the whole collection available. Saved-room status counts apply only to returned saved listings.
+
+Free now with a fixed Available until end stops being a valid request when fewer than five minutes remain. The app then hides earlier room claims, stops availability polling, and shows Session ending; at the selected end it shows Session expired. Exact boundary timers and visibility/focus checks update both Find and Saved views, even when background timers were suspended. Choose a later end or Duration to resume. Fixed custom-time searches and independent room/building calendars retain their existing behavior. Malformed dates, DST choices and windows over four hours still receive normal input validation.

@@ -710,6 +710,40 @@
 .source-details p {
   margin-block: 5px;
 }
+.room-card > .button {
+  margin-block: 12px;
+  width: 100%;
+}
+.saved-page > p {
+  max-width: 76ch;
+  margin-block: 12px;
+}
+.saved-page > h2 {
+  font: 24px/1.25 var(--display-font);
+  margin-block: 28px 14px;
+}
+.saved-page > p a {
+  text-decoration: underline;
+}
+.saved-buildings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 0;
+  list-style: none;
+}
+.saved-buildings li {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.saved-page .room-grid {
+  margin-block: 20px;
+}
 @media (max-width: 600px) {
   .appearance-control {
     flex-direction: column;

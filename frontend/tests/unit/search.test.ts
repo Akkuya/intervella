@@ -1,6 +1,50 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { readLocation, searchParams, requestParams } from '../../src/search.ts'
+import { readLocation, searchParams, requestParams, SearchSessionEnded } from '../../src/search.ts'
+
+test('an expired search does not invalidate independent room and building calendars', () => {
+  const query = '?mode=now&end_date=2026-10-14&end_time=09%3A00&schedule_date=2026-10-15'
+  const later = new Date('2026-10-14T12:56:00Z')
+  assert.equal(readLocation(query, new Date('2026-10-14T12:50:00Z')).error, undefined)
+  assert.equal(readLocation(query, later).error, undefined)
+  assert.equal(readLocation(query, later).session?.state, 'ending')
+  assert.equal(readLocation(query + '&view=buildings&building=SYN-A', later).error, undefined)
+  assert.equal(readLocation(query + '&room=1', later).error, undefined)
+  assert.ok(readLocation('?view=buildings&schedule_date=bad', later).error)
+})
+
+test('moving until windows become ending then expired at exact request boundaries', () => {
+  const query = '?mode=now&end_date=2026-10-14&end_time=09%3A00'
+  const valid = readLocation(query, new Date('2026-10-14T12:55:00Z'))
+  assert.equal(valid.session, undefined)
+  assert.equal(valid.sessionEnd, '2026-10-14T13:00:00.000Z')
+  for (const [instant, state] of [
+    ['2026-10-14T12:55:00.001Z', 'ending'],
+    ['2026-10-14T13:00:00Z', 'expired'],
+    ['2026-10-14T14:00:00Z', 'expired'],
+  ]) {
+    const now = new Date(instant)
+    const location = readLocation(query, now)
+    assert.equal(location.error, undefined)
+    assert.equal(location.session?.state, state)
+    assert.throws(() => requestParams(location.search, now), SearchSessionEnded)
+  }
+  assert.ok(readLocation(query, new Date('2026-10-14T08:00:00Z')).error)
+  assert.ok(readLocation('?mode=now&end_date=bad&end_time=09%3A00').error)
+  const fixed = readLocation(
+    query.replace('mode=now', 'mode=custom&date=2026-10-14&time=08%3A00'),
+    new Date('2026-10-15T12:00:00Z'),
+  )
+  assert.equal(fixed.session, undefined)
+  assert.equal(fixed.error, undefined)
+})
+
+test('session deadlines use Toronto DST offsets rather than device wall time', () => {
+  const query = '?mode=now&end_date=2026-11-01&end_time=01%3A30&end_offset=-05%3A00'
+  assert.equal(readLocation(query, new Date('2026-11-01T06:25:00Z')).session, undefined)
+  assert.equal(readLocation(query, new Date('2026-11-01T06:25:00.001Z')).session?.state, 'ending')
+  assert.equal(readLocation(query, new Date('2026-11-01T06:30:00Z')).session?.state, 'expired')
+})
 
 const now = new Date('2026-10-14T12:00:00Z')
 
@@ -48,4 +92,20 @@ test('now bookmarks ignore legacy fixed date and offset fields', () => {
   assert.equal(location.search.date, '2026-10-14')
   assert.equal(location.search.time, '08:00')
   assert.equal(location.search.offset, '')
+})
+
+test('until searches restore both Toronto instants and smart filters', () => {
+  const query =
+    '?mode=custom&date=2026-11-01&time=01%3A30&offset=-04%3A00&end_date=2026-11-01&end_time=01%3A30&end_offset=-05%3A00&room_name=AA112&sort=duration&include_next=1'
+  const first = readLocation(query, now)
+  assert.equal(first.error, undefined)
+  assert.equal(requestParams(first.search, now).end, '2026-11-01T06:30:00.000Z')
+  assert.equal(requestParams(first.search, now).duration_minutes, undefined)
+  assert.deepEqual(readLocation(`?${searchParams(first.search)}`, now).search, first.search)
+  for (const bad of ['&sort=unsafe', '&end_offset=bad', '&end_date=bad']) {
+    const changed = new URLSearchParams(query)
+    const [key, value] = bad.slice(1).split('=')
+    changed.set(key, value)
+    assert.ok(readLocation(`?${changed}`, now).error)
+  }
 })

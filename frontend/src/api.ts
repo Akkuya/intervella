@@ -37,12 +37,69 @@ export interface Coverage {
   starts_at: string | null
   ends_at: string | null
 }
+export interface SearchRoom extends Room {
+  state: 'available' | 'scheduled' | 'unknown' | 'inactive'
+  available_until: string | null
+  next_available_start: string | null
+  next_booking: string | null
+}
+export interface RoomSearchResponse {
+  query: TimeWindow
+  data: SearchRoom[]
+  meta: AvailabilityResponse['meta'] & { missing_room_ids: number[]; lookahead_end: string }
+}
+export interface RoomSearchQuery {
+  start: string
+  end?: string
+  duration_minutes?: number
+  building?: string
+  room_name?: string
+  sort?: 'building' | 'room' | 'duration'
+  include_next?: boolean
+  room_ids?: number[]
+}
 export interface ScheduleResponse {
   room: Room
   date: string
   query: TimeWindow
-  data: { id: number; starts_at: string; ends_at: string; status: 'scheduled' | 'cancelled' }[]
+  data: Meeting[]
   meta: Freshness & { coverage: Coverage }
+  calendar?: DayCalendar | null
+}
+export interface Meeting {
+  id: number
+  starts_at: string
+  ends_at: string
+  status: 'scheduled' | 'cancelled'
+  public_label?: { text: string; authorization: 'approved_public' } | null
+}
+export interface CalendarPeriod {
+  starts_at: string
+  ends_at: string
+  state: 'available' | 'scheduled' | 'unknown'
+}
+export interface CoverageWindow {
+  starts_at: string
+  ends_at: string
+  completeness: Coverage['completeness']
+}
+export interface DayCalendar {
+  window: TimeWindow
+  coverage: CoverageWindow[]
+  periods: CalendarPeriod[]
+}
+export interface CalendarRoom {
+  room: Room
+  meetings: Meeting[]
+  calendar: DayCalendar
+}
+export interface BuildingScheduleResponse {
+  building: Building
+  date: string
+  query: TimeWindow
+  display_window: TimeWindow
+  data: CalendarRoom[]
+  meta: Freshness & { unknown_room_count: number }
 }
 export interface StatusResponse extends Freshness {
   age_seconds: number
@@ -68,6 +125,10 @@ const messages: Record<string, string> = {
   request_timeout: 'The schedule request timed out. Try again.',
   connection_error: 'Could not reach the schedule service. Check your connection and try again.',
   invalid_response: 'The schedule service returned an unexpected response. Try again later.',
+  building_not_found: 'This building could not be found. Choose an active building.',
+  schedule_too_large:
+    'This calendar exceeds the safe display limit. Choose a smaller building or another date.',
+  search_too_large: 'This search exceeds the safe limit. Narrow the building or room filter.',
 }
 
 export class ApiError extends Error {
@@ -126,6 +187,62 @@ const roomResponseShape = (value: unknown) =>
   roomShape(value.data) &&
   record(value.data) &&
   typeof value.data.active === 'boolean'
+const meetingShape = (item: unknown) =>
+  record(item) &&
+  integer(item.id) &&
+  instant(item.starts_at) &&
+  instant(item.ends_at) &&
+  Date.parse(item.ends_at as string) > Date.parse(item.starts_at as string) &&
+  ['scheduled', 'cancelled'].includes(item.status as string) &&
+  (item.public_label === undefined ||
+    item.public_label === null ||
+    (record(item.public_label) &&
+      item.public_label.authorization === 'approved_public' &&
+      text(item.public_label.text) &&
+      (item.public_label.text as string).trim().length > 0 &&
+      (item.public_label.text as string).length <= 120))
+const calendarShape = (value: unknown) =>
+  record(value) &&
+  windowShape(value.window) &&
+  Array.isArray(value.coverage) &&
+  value.coverage.every(
+    (item: unknown) =>
+      record(item) &&
+      instant(item.starts_at) &&
+      instant(item.ends_at) &&
+      ['complete', 'partial', 'unknown'].includes(item.completeness as string),
+  ) &&
+  Array.isArray(value.periods) &&
+  value.periods.length > 0 &&
+  value.periods.every(
+    (item: unknown) =>
+      record(item) &&
+      instant(item.starts_at) &&
+      instant(item.ends_at) &&
+      ['available', 'scheduled', 'unknown'].includes(item.state as string),
+  )
+const buildingScheduleShape = (value: unknown) =>
+  record(value) &&
+  record(value.building) &&
+  integer(value.building.id) &&
+  text(value.building.code) &&
+  text(value.building.name) &&
+  text(value.date) &&
+  windowShape(value.query) &&
+  windowShape(value.display_window) &&
+  freshnessShape(value.meta) &&
+  record(value.meta) &&
+  integer(value.meta.unknown_room_count) &&
+  Array.isArray(value.data) &&
+  value.data.length <= 100 &&
+  value.data.every(
+    (item: unknown) =>
+      record(item) &&
+      roomResponseShape({ data: item.room }) &&
+      Array.isArray(item.meetings) &&
+      item.meetings.every(meetingShape) &&
+      calendarShape(item.calendar),
+  )
 const availabilityShape = (value: unknown) =>
   record(value) &&
   windowShape(value.query) &&
@@ -156,13 +273,36 @@ const scheduleShape = (value: unknown) =>
   nullableInstant(value.meta.coverage.starts_at) &&
   nullableInstant(value.meta.coverage.ends_at) &&
   Array.isArray(value.data) &&
+  value.data.every(meetingShape) &&
+  (value.calendar === undefined || value.calendar === null || calendarShape(value.calendar))
+const roomSearchShape = (value: unknown) =>
+  record(value) &&
+  windowShape(value.query) &&
+  record(value.query) &&
+  record(value.meta) &&
+  freshnessShape(value.meta) &&
+  integer(value.meta.unknown_room_count) &&
+  ['complete', 'partial'].includes(value.meta.coverage as string) &&
+  typeof value.meta.has_more === 'boolean' &&
+  instant(value.meta.lookahead_end) &&
+  Array.isArray(value.meta.missing_room_ids) &&
+  value.meta.missing_room_ids.every(integer) &&
+  Array.isArray(value.data) &&
+  value.data.length <= 100 &&
   value.data.every(
     (item: unknown) =>
       record(item) &&
-      integer(item.id) &&
-      instant(item.starts_at) &&
-      instant(item.ends_at) &&
-      ['scheduled', 'cancelled'].includes(item.status as string),
+      roomResponseShape({ data: item }) &&
+      ['available', 'scheduled', 'unknown', 'inactive'].includes(item.state as string) &&
+      nullableInstant(item.available_until) &&
+      nullableInstant(item.next_available_start) &&
+      nullableInstant(item.next_booking) &&
+      (item.state !== 'available' ||
+        (item.active === true &&
+          instant(item.available_until) &&
+          Date.parse(item.available_until as string) >=
+            Date.parse((value.query as Record<string, string>).end))) &&
+      (item.state === 'available' || item.available_until === null),
   )
 const statusShape = (value: unknown) =>
   record(value) &&
@@ -214,6 +354,41 @@ async function get<T>(
 }
 
 export const api = {
+  roomSearch: (query: RoomSearchQuery, signal?: AbortSignal) => {
+    const params = new URLSearchParams()
+    for (const [key, value] of Object.entries(query)) {
+      if (key === 'room_ids')
+        (value as number[]).forEach((id) => params.append('room_ids', String(id)))
+      else if (value !== undefined) params.set(key, String(value))
+    }
+    return get<RoomSearchResponse>(
+      `room-search?${params}`,
+      signal,
+      (value) =>
+        roomSearchShape(value) &&
+        record(value) &&
+        Array.isArray(value.data) &&
+        (!query.room_ids ||
+          value.data.every(
+            (item: unknown) => record(item) && query.room_ids!.includes(item.room_id as number),
+          )),
+    )
+  },
+  buildingSchedule: (code: string, date: string, signal?: AbortSignal) =>
+    get<BuildingScheduleResponse>(
+      `buildings/${encodeURIComponent(code)}/schedule?${new URLSearchParams({ date })}`,
+      signal,
+      (value) =>
+        buildingScheduleShape(value) &&
+        record(value) &&
+        record(value.building) &&
+        value.building.code === code &&
+        value.date === date &&
+        Array.isArray(value.data) &&
+        value.data.every(
+          (item: unknown) => record(item) && record(item.room) && item.room.building_code === code,
+        ),
+    ),
   buildings: (signal?: AbortSignal) =>
     get<{ data: Building[] }>('buildings', signal, buildingsShape),
   status: (signal?: AbortSignal) => get<StatusResponse>('status', signal, statusShape),

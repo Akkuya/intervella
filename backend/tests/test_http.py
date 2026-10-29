@@ -75,6 +75,25 @@ def test_real_http_availability(postgres_engine):
                 hours=1
             )
             assert client.get("/health/ready").status_code == 200
+            enhanced = client.get(
+                "/api/v1/room-search",
+                params={
+                    "start": now.isoformat(),
+                    "end": (now + timedelta(hours=1)).isoformat(),
+                    "room_ids": [1, 2, 7],
+                },
+            )
+            assert enhanced.status_code == 200
+            search = enhanced.json()
+            assert search["meta"]["dataset_id"] == str(dataset_id)
+            assert [room["state"] for room in search["data"]] == [
+                "available",
+                "available",
+                "inactive",
+            ]
+            assert datetime.fromisoformat(search["data"][0]["available_until"]) == now + timedelta(
+                hours=1
+            )
     finally:
         process.terminate()
         try:

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/**/*.ts\" *.ts index.html *.json",
-    "test": "node --experimental-strip-types --test tests/unit/time.test.ts tests/unit/search.test.ts tests/unit/api.test.ts",
+    "test": "node --experimental-strip-types --test tests/unit/*.test.ts",
     "test:e2e": "playwright test",
     "typecheck": "tsc -b --pretty false",
     "dev": "vite",

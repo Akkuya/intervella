@@ -39,7 +39,7 @@ On macOS/Linux, use `npm` instead of `npm.cmd` and adjust the checkout path.
 
 - **Free now** sends the current UTC instant and refreshes every 60 seconds while the tab is visible. Returning to the tab can refresh a Now query.
 - **Choose a time** interprets date/time in `America/Toronto`, independently of device timezone. Nonexistent DST times are rejected; repeated times require choosing the first/second occurrence and explicit offset.
-- Displayed times include their UTC offset, and overnight search windows include the end date so repeated hours and midnight crossings remain unambiguous.
+- Displayed times use friendly 12-hour Toronto labels. Repeated DST hours include EDT/EST to distinguish occurrences, and overnight windows include the end date. Input/API timestamps retain explicit offsets.
 - Duration is 5..240 minutes; building is optional. Availability, filtering, ordering, limits, coverage, and next booking are decided by FastAPI, not the browser.
 - Results show the API's search window, room, nullable capacity, next scheduled booking, freshness, last-check time, and count excluded for incomplete coverage. A null next booking means no later booking is known, not unlimited availability.
 - Room links open room details and a Toronto calendar-day schedule, including cancellations and explicit partial/unknown coverage warnings. An empty schedule is never labelled available.
@@ -89,3 +89,11 @@ The client in `src/api.ts` mirrors the public Pydantic responses in `backend/app
 Installed React/TanStack Query and Tailwind are reused. Native History/URLSearchParams and Intl handle navigation and Toronto time. No router or date-library dependency is introduced. Playwright, axe, and Prettier are development tools. Unused PWA tooling was removed to avoid an unimplemented caching surface; scoped non-breaking patches resolved the original development-tool advisories.
 
 Authorized ingestion, provenance, production deployment/TLS/role checks, and broader real-device/browser testing remain future work.
+
+## Milestone 5A: appearance and presentation
+
+Appearance offers Light, Dark and System (default). Only the selected preference is stored under `utscvacant.appearance`; blocked storage still allows changes for the session. The small bootstrap in index.html applies the saved/OS choice before the application loads; a deployment CSP must permit that bootstrap using a hash or equivalent policy. No third-party fonts or UI framework were added.
+
+Full room labels consistently combine the API's building code and room number, including basement identifiers. Friendly times always use America/Toronto, independent of device timezone; EDT/EST is shown when a repeated hour needs disambiguation. Source details remain available in an expandable disclosure. The current API does not prove a free-until bound, so these cards continue to show only the next known booking.
+
+Manual synthetic checks: run `npm.cmd run build` then `npm.cmd run test:e2e -- --project=desktop --headed`. Change Appearance through all options, reload, change the OS preference with System selected, open a room, and use browser Back. Check the full room label, compact source details, focus and midnight/repeated-hour labels. The mobile project exercises the same interactions at a narrow viewport. Playwright captures light search and dark search screenshots in test-results; the frontend CI uploads them in frontend-browser-results. Only synthetic fixtures are used. Physical-device and manual screen-reader verification are not claimed.

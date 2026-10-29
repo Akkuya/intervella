@@ -1,15 +1,58 @@
 @import 'tailwindcss';
 :root {
   font-family: 'Segoe UI', Arial, sans-serif;
-  color: #193047;
-  background: #f0f5fa;
+  --display-font: 'Trebuchet MS', 'Segoe UI', sans-serif;
+  color-scheme: light;
+  --canvas: #eef3f5;
+  --surface: #ffffff;
+  --navy: #102f3c;
+  --blue: #245acc;
+  --on-primary: #ffffff;
+  --primary-hover: #1748ad;
+  --muted: #4b6470;
+  --line: #cad8df;
+  --border-strong: #79909b;
+  --info-bg: #e9f1ff;
+  --info-text: #214f9c;
+  --success-bg: #e5f4ee;
+  --success-text: #14553f;
+  --warning-bg: #fff3d4;
+  --warning-text: #684300;
+  --warning-border: #bd953f;
+  --neutral-bg: #e9eff2;
+  --danger: #9b302d;
+  --ribbon-bg: #153c48;
+  --ribbon-ink: #ffffff;
+  --ribbon-muted: #bdd9e2;
+  color: var(--navy);
+  background: var(--canvas);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  --navy: #142c45;
-  --blue: #155abb;
-  --muted: #52667b;
-  --line: #d4e0eb;
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --canvas: #101d25;
+  --surface: #172a34;
+  --navy: #e4eef1;
+  --blue: #69d6c4;
+  --on-primary: #102f3c;
+  --primary-hover: #8de9d9;
+  --muted: #a9bec7;
+  --line: #3d5661;
+  --border-strong: #76909d;
+  --info-bg: #203f50;
+  --info-text: #b8d8ff;
+  --success-bg: #1b4237;
+  --success-text: #99e5be;
+  --warning-bg: #3a301d;
+  --warning-text: #f6d78c;
+  --warning-border: #a28a4d;
+  --neutral-bg: #293d47;
+  --danger: #ffb8b1;
+  --ribbon-bg: #234d5a;
+  --ribbon-ink: #f1fafb;
+  --ribbon-muted: #c3dce3;
 }
 * {
   box-sizing: border-box;
@@ -44,7 +87,7 @@ a:hover {
   text-decoration: underline;
 }
 :focus-visible {
-  outline: 3px solid #155abb;
+  outline: 3px solid var(--blue);
   outline-offset: 4px;
 }
 [tabindex='-1']:focus {
@@ -65,19 +108,20 @@ button,
 input,
 select,
 a {
-  border-radius: 5px;
+  border-radius: 6px;
 }
 input,
 select {
   width: 100%;
   min-width: 0;
   padding: 11px 12px;
-  background: #fff;
-  border: 1px solid #7890a4;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
   color: var(--navy);
   min-height: 46px;
 }
-input[type='radio'] {
+input[type='radio'],
+input[type='checkbox'] {
   width: 17px;
   min-height: 17px;
   margin: 0;
@@ -104,8 +148,10 @@ legend {
 code,
 time,
 .tabular-nums {
-  font-family: ui-monospace, Consolas, monospace;
   font-variant-numeric: tabular-nums;
+}
+summary {
+  cursor: pointer;
 }
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -113,5 +159,6 @@ time,
   *::after {
     scroll-behavior: auto !important;
     transition: none !important;
+    animation: none !important;
   }
 }

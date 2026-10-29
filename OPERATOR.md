@@ -1,4 +1,4 @@
-# Private data operations
+# Intervella private data operations
 
 Start the private operator dashboard separately from the student application:
 

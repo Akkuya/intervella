@@ -75,7 +75,7 @@ def error_response(request: Request, error: APIError) -> JSONResponse:
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_environment()
     app = FastAPI(
-        title="UTSCVacant API",
+        title="Intervella API",
         version="0.2.0",
         lifespan=lifespan,
         description=(

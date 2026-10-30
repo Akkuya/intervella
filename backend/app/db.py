@@ -4,8 +4,9 @@ import os
 from collections.abc import Iterator
 from functools import lru_cache
 
-from sqlalchemy import URL, Engine, make_url
+from sqlalchemy import URL, Engine, event, make_url
 from sqlalchemy.exc import ArgumentError
+from sqlalchemy.pool import NullPool
 from sqlmodel import Session, create_engine
 
 
@@ -23,18 +24,35 @@ def database_url(variable: str = "DATABASE_URL") -> URL:
 
 
 def create_db_engine(variable: str = "DATABASE_URL") -> Engine:
-    return create_engine(
+    mode = os.getenv("DATABASE_POOL_MODE", "session")
+    if mode not in {"session", "transaction"}:
+        raise ValueError("DATABASE_POOL_MODE must be session or transaction")
+    pooled = mode == "transaction"
+    engine = create_engine(
         database_url(variable),
-        pool_size=5,
-        max_overflow=0,
+        **({"poolclass": NullPool} if pooled else {"pool_size": 5, "max_overflow": 0}),
         pool_pre_ping=True,
         hide_parameters=True,
         echo=False,
-        connect_args={
-            "connect_timeout": 10,
-            "options": "-c timezone=UTC -c statement_timeout=3000",
-        },
+        connect_args=(
+            {"connect_timeout": 5, "prepare_threshold": None}
+            if pooled
+            else {
+                "connect_timeout": 10,
+                "options": "-c timezone=UTC -c statement_timeout=3000",
+            }
+        ),
     )
+    if pooled:
+
+        @event.listens_for(engine, "begin")
+        def local_settings(connection):
+            # Pooler backends change after each transaction; never leave session-level state.
+            if not connection.connection.dbapi_connection.autocommit:
+                connection.exec_driver_sql("SET LOCAL timezone = 'UTC'")
+                connection.exec_driver_sql("SET LOCAL statement_timeout = '3s'")
+
+    return engine
 
 
 @lru_cache(maxsize=1)

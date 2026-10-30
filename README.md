@@ -1,5 +1,8 @@
 # Intervella (UTSC)
 
+![Intervella — lavender portal logo and wordmark](frontend/public/assets/intervella-wordmark.svg)
+
+
 **Find your space between classes.**
 
 Intervella is an independent UTSC student project for checking scheduled classroom availability. It is not an official University of Toronto service, and a timetable gap does not guarantee physical access or vacancy.

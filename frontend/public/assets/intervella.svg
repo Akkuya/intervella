@@ -1,5 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none">
-  <rect width="40" height="40" rx="9" fill="#102f3c"/>
-  <path d="M13 11v18m14-18v18" stroke="#99e5be" stroke-width="4" stroke-linecap="round"/>
-  <path d="M20 17v6" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="Intervella portal mark">
+  <defs>
+    <linearGradient id="left" x1="10" y1="12" x2="39" y2="57" gradientUnits="userSpaceOnUse"><stop stop-color="#636174"/><stop offset="1" stop-color="#262630"/></linearGradient>
+    <linearGradient id="right" x1="39" y1="10" x2="62" y2="53" gradientUnits="userSpaceOnUse"><stop stop-color="#E0D6FF"/><stop offset="1" stop-color="#A38CF3"/></linearGradient>
+    <linearGradient id="floor" x1="32" y1="43" x2="32" y2="60" gradientUnits="userSpaceOnUse"><stop stop-color="#AE9AF5" stop-opacity=".7"/><stop offset="1" stop-color="#AE9AF5" stop-opacity="0"/></linearGradient>
+  </defs>
+  <path d="M31.5 42 52 55 33 62 14 54Z" fill="url(#floor)"/>
+  <path d="M10 12C10 7 14.5 5 19 7l22 11v31L19 58c-5 2-9-1-9-6V12Z" fill="url(#left)"/>
+  <path d="m41 18 10-5c4-2 8 .2 8 5v34c0 5-4 7-8 5l-10-8V18Z" fill="url(#right)"/>
+  <path d="M30 25c0-3 1-5 4-6l7-1v31l-11 7V25Z" fill="#15171B"/>
 </svg>

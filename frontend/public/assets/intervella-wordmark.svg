@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 132" role="img" aria-label="Intervella">
+  <rect width="600" height="132" rx="14" fill="#15171B"/>
+  <defs>
+    <linearGradient id="panel" x1="21" y1="9" x2="77" y2="96" gradientUnits="userSpaceOnUse"><stop stop-color="#686679"/><stop offset="1" stop-color="#262630"/></linearGradient>
+    <linearGradient id="lavender" x1="72" y1="4" x2="106" y2="99" gradientUnits="userSpaceOnUse"><stop stop-color="#E0D6FF"/><stop offset="1" stop-color="#A38CF3"/></linearGradient>
+  </defs>
+  <g transform="translate(6 8)">
+    <path d="M12 19C12 11 18 7 25 10L73 33V85L25 108C18 111 12 107 12 99Z" fill="url(#panel)"/>
+    <path d="m73 33 18-9c7-4 13 0 13 8v66c0 8-6 11-13 7L73 85Z" fill="url(#lavender)"/>
+    <path d="M54 47c0-5 3-8 7-10l12-4v52L54 95Z" fill="#15171B"/>
+  </g>
+  <circle cx="151" cy="48" r="6" fill="#B6A3FF"/>
+  <text x="140" y="108" fill="#F4F3F8" font-family="Inter,Arial,Helvetica,sans-serif" font-size="66" font-weight="500" letter-spacing="-3.5">intervella</text>
+</svg>

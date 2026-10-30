@@ -1,5 +1,8 @@
 # Intervella backend development
 
+Student timetable access now requires configured beta or university authentication. See [secure access setup](../AUTHENTICATION.md) before starting the app. Existing private schedule data must not be migrated or reset as part of local auth setup.
+
+
 Run backend commands from this directory:
 
 ```powershell

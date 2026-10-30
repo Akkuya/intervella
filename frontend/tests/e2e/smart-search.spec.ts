@@ -1,3 +1,4 @@
+import { visit, openFilters } from './control-helpers.ts'
 import { choose, setTime } from './control-helpers.ts'
 import { test, expect } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
@@ -10,7 +11,10 @@ test.beforeEach(async ({ page }) => {
 test('expired until searches leave room and building calendar navigation usable', async ({
   page,
 }) => {
-  await page.goto('/?mode=now&end_date=2026-10-14&end_time=08%3A10&room=1&schedule_date=2026-10-14')
+  await visit(
+    page,
+    '/?mode=now&end_date=2026-10-14&end_time=08%3A10&room=1&schedule_date=2026-10-14',
+  )
   await expect(page.getByRole('heading', { name: 'SYN-A-101', exact: true })).toBeVisible()
   await page.clock.fastForward(6 * 60_000)
   await expect(page.getByRole('heading', { name: 'SYN-A-101', exact: true })).toBeVisible()
@@ -28,7 +32,7 @@ test('saved now results refresh on visibility return after a booking boundary', 
   await page.addInitScript(() =>
     localStorage.setItem('utscvacant.favourites', JSON.stringify({ rooms: [1], buildings: [] })),
   )
-  await page.goto('/?view=saved')
+  await visit(page, '/?view=saved')
   await expect(page.getByRole('article', { name: 'SYN-A-101' })).toContainText('Schedule available')
   await page.evaluate(() =>
     Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true }),
@@ -67,7 +71,7 @@ test('saved now results refresh on visibility return after a booking boundary', 
 test('until, normalized name and sorting are shared in URLs and checked by the API', async ({
   page,
 }, testInfo) => {
-  await page.goto('/?mode=custom&date=2026-10-14&time=08%3A00')
+  await visit(page, '/?mode=custom&date=2026-10-14&time=08%3A00')
   await choose(page, 'Search length', 'until')
   await setTime(page, 'Available until', '09:00')
   await page.getByRole('searchbox', { name: 'Room name' }).fill('SYNA101')
@@ -75,7 +79,7 @@ test('until, normalized name and sorting are shared in URLs and checked by the A
   const request = page.waitForRequest(
     (item) => item.url().includes('/room-search') && new URL(item.url()).searchParams.has('end'),
   )
-  await page.getByRole('button', { name: 'Find rooms' }).click()
+  await page.getByRole('button', { name: 'Refresh', exact: true }).click()
   const params = new URL((await request).url()).searchParams
   expect(params.get('start')).toBe('2026-10-14T12:00:00.000Z')
   expect(params.get('end')).toBe('2026-10-14T13:00:00.000Z')
@@ -84,6 +88,7 @@ test('until, normalized name and sorting are shared in URLs and checked by the A
   expect(params.get('sort')).toBe('duration')
   await expect(page).toHaveURL(/end_time=09%3A00/)
   await page.reload()
+  await openFilters(page)
   await expect(
     page.getByRole('button', { name: /^Available until: / }).locator('time'),
   ).toHaveAttribute('datetime', '09:00')
@@ -119,7 +124,7 @@ test('next known openings and unknown coverage do not claim current availability
       },
     }),
   )
-  await page.goto('/?include_next=1')
+  await visit(page, '/?include_next=1')
   await expect(page.getByLabel('Include other rooms and next known openings')).toBeChecked()
   await expect(page.getByRole('article', { name: 'SYN-A-101' })).toContainText(
     'Next known opening10:00 AM',
@@ -132,7 +137,7 @@ test('next known openings and unknown coverage do not claim current availability
 test('room and building favourites persist, batch checks and removal stay local', async ({
   page,
 }, testInfo) => {
-  await page.goto('/')
+  await visit(page, '/')
   await page.getByRole('button', { name: 'Save SYN-A-101', exact: true }).click()
   await page.getByRole('button', { name: 'Save SYN-B-205', exact: true }).click()
   await page.getByRole('link', { name: 'Building schedules', exact: true }).click()
@@ -151,6 +156,7 @@ test('room and building favourites persist, batch checks and removal stay local'
   expect(individuals).toBe(0)
   await expect(page.getByRole('link', { name: 'SYN-A · Synthetic Building A' })).toBeVisible()
   await page.reload()
+  await openFilters(page)
   await expect(page.getByRole('button', { name: 'Remove SYN-A-101', exact: true })).toBeVisible()
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
   await page.screenshot({ path: testInfo.outputPath('saved-rooms.png'), fullPage: true })
@@ -173,7 +179,7 @@ test('blocked storage still permits session favourites', async ({ page }) => {
       throw new Error('blocked')
     }
   })
-  await page.goto('/?room=1')
+  await visit(page, '/?room=1')
   await page.getByRole('button', { name: 'Save SYN-A-101', exact: true }).click()
   await page.getByRole('link', { name: 'Saved rooms', exact: true }).click()
   await expect(page.getByRole('link', { name: 'View SYN-A-101' })).toBeVisible()
@@ -209,7 +215,7 @@ test('saved inactive and missing listings, stale source, offline and API failure
       },
     }),
   )
-  await page.goto('/?view=saved')
+  await visit(page, '/?view=saved')
   await expect(page.getByText('Inactive listing', { exact: true })).toBeVisible()
   await expect(page.getByText('Older schedule', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Remove room 999' })).toBeVisible()
@@ -232,10 +238,9 @@ test('saved inactive and missing listings, stale source, offline and API failure
 test('until end time rejects DST gaps and demands an explicit repeated occurrence', async ({
   page,
 }) => {
-  await page.goto('/?mode=custom&date=2026-11-01&time=01%3A00&offset=-04%3A00')
+  await visit(page, '/?mode=custom&date=2026-11-01&time=01%3A00&offset=-04%3A00')
   await choose(page, 'Search length', 'until')
   await setTime(page, 'Available until', '01:30')
-  await page.getByRole('button', { name: 'Find rooms' }).click()
   await expect(page.getByText('This time occurs twice', { exact: false })).toBeVisible()
   await choose(page, 'End time occurrence', '-05:00')
   const request = page.waitForRequest(
@@ -243,9 +248,12 @@ test('until end time rejects DST gaps and demands an explicit repeated occurrenc
       item.url().includes('/room-search') &&
       new URL(item.url()).searchParams.get('end') === '2026-11-01T06:30:00.000Z',
   )
-  await page.getByRole('button', { name: 'Find rooms' }).click()
+  await page.getByRole('button', { name: 'Refresh', exact: true }).click()
   await request
-  await page.goto('/?mode=custom&date=2026-03-08&time=01%3A30&end_date=2026-03-08&end_time=02%3A30')
+  await visit(
+    page,
+    '/?mode=custom&date=2026-03-08&time=01%3A30&end_date=2026-03-08&end_time=02%3A30',
+  )
   await expect(page.getByText('This time does not exist', { exact: false })).toBeVisible()
 })
 
@@ -263,7 +271,7 @@ test('67 search cards render within mobile width without request fanout', async 
       },
     }),
   )
-  await page.goto('/')
+  await visit(page, '/')
   await expect(page.getByRole('article')).toHaveCount(67)
   expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(
     false,

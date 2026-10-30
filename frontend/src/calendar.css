@@ -69,12 +69,12 @@
 }
 .time-axis {
   position: relative;
-  height: 48px;
+  height: 60px;
   background: var(--neutral-bg);
 }
 .time-axis span {
   position: absolute;
-  top: 14px;
+  top: 30px;
   font-size: 11px;
   white-space: nowrap;
   padding-left: 5px;
@@ -127,7 +127,7 @@
   position: absolute;
   height: 58px;
   border: 1px solid var(--info-text);
-  border-left: 4px solid var(--blue);
+  border-left: 4px solid var(--info-text);
   background: var(--info-bg);
   color: var(--info-text);
   font-size: 10px;
@@ -158,7 +158,7 @@
   position: absolute;
   inset-block: 0;
   width: 2px;
-  background: var(--danger);
+  background: var(--text-secondary);
   z-index: 3;
   pointer-events: none;
 }
@@ -249,5 +249,37 @@
   }
   .building-page h1 {
     font-size: 30px;
+  }
+}
+
+.now-marker {
+  position: absolute;
+  top: 0;
+  z-index: 5;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--text);
+  color: var(--surface);
+  font-size: 11px;
+  font-weight: 700;
+}
+.interval-dialog .interval-room {
+  font-size: 24px;
+  font-weight: 600;
+}
+.interval-duration {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.interval-dialog {
+  border-radius: 16px;
+  padding: 24px;
+}
+@media (max-width: 767px) {
+  .calendar-grid {
+    --room-axis-width: 96px;
+  }
+  .calendar-room {
+    padding: 12px 8px;
   }
 }

@@ -104,7 +104,7 @@ export function searchParams(search: SearchInput): URLSearchParams {
     params.set('end_time', search.endTime ?? '')
     if (search.endOffset) params.set('end_offset', search.endOffset)
   }
-  if (search.roomName) params.set('room_name', search.roomName)
+  if (search.roomName) params.set('room_name', search.roomName.trim())
   if (search.sort && search.sort !== 'building') params.set('sort', search.sort)
   if (search.includeNext) params.set('include_next', '1')
   return params

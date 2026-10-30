@@ -1,10 +1,11 @@
+import { visit } from './control-helpers.ts'
 import { test, expect } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 import { mockAPI } from './fixtures.ts'
 import { choose, selectTrigger } from './control-helpers.ts'
 test('custom selectors retain keyboard, themed scrolling and forced colors', async ({ page }) => {
   await mockAPI(page)
-  await page.goto('/')
+  await visit(page, '/')
   const duration = selectTrigger(page, 'Duration')
   await duration.focus()
   await page.keyboard.press('Enter')

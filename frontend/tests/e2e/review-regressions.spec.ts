@@ -1,3 +1,4 @@
+import { visit } from './control-helpers.ts'
 import { choose } from './control-helpers.ts'
 import { test, expect } from '@playwright/test'
 import { mockAPI, available, NOW } from './fixtures.ts'
@@ -9,7 +10,7 @@ test.beforeEach(async ({ page }) => {
 test('include-next collection stays neutral even when all returned rooms are available', async ({
   page,
 }) => {
-  await page.goto('/?include_next=1')
+  await visit(page, '/?include_next=1')
   await expect(page.getByRole('heading', { name: 'Room status', exact: true })).toBeVisible()
   await expect(page.locator('.result-count')).toContainText(
     '2 rooms shown: 2 available for the requested time',
@@ -44,7 +45,7 @@ for (const view of ['find', 'saved']) {
         },
       }),
     )
-    await page.goto(view === 'find' ? '/?include_next=1' : '/?view=saved')
+    await visit(page, view === 'find' ? '/?include_next=1' : '/?view=saved')
     await expect(page.getByRole('article')).toHaveCount(4)
     await expect(
       page.getByRole('heading', { name: 'Schedule available', exact: true }),
@@ -96,7 +97,7 @@ for (const view of ['find', 'saved']) {
           },
         })
       })
-      await page.goto(`/?view=${view}&mode=now&end_date=2026-10-14&end_time=08%3A06`)
+      await visit(page, `/?view=${view}&mode=now&end_date=2026-10-14&end_time=08%3A06`)
       await expect(page.getByRole('article')).toHaveCount(1)
       if (resume) {
         await page.evaluate(() =>
@@ -142,7 +143,6 @@ for (const view of ['find', 'saved']) {
       }
       await page.getByRole('link', { name: 'Find a room', exact: true }).click()
       await choose(page, 'Search length', 'duration')
-      await page.getByRole('button', { name: 'Find rooms' }).click()
       await expect(page.getByRole('article')).toHaveCount(1)
       await expect(
         page.getByRole('heading', { name: 'Session expired', exact: true }),

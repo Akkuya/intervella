@@ -9,6 +9,7 @@ import { EmptyState } from './ui.tsx'
 import { navigate } from './navigation.ts'
 import { readLocation } from './search.ts'
 import { roomLabel } from './rooms.ts'
+import { useFavourites } from './favourites.ts'
 import { FavouriteButton } from './FavouriteButton.tsx'
 
 export function BuildingSchedules({
@@ -30,6 +31,7 @@ export function BuildingSchedules({
   reloadBuildings: () => void
   statusPending: boolean
 }) {
+  const { value: favourites } = useFavourites()
   const location = readLocation(query)
   const params = new URLSearchParams(query)
   const code = params.get('building') || buildings[0]?.code || ''
@@ -53,6 +55,30 @@ export function BuildingSchedules({
       <h1 id="page-title" tabIndex={-1}>
         Building schedules
       </h1>
+      <div className="selected-building">
+        <span className="building-code">{code}</span>
+        <h2>
+          {buildings.find((building) => building.code === code)?.name ?? 'Building inventory'}
+        </h2>
+      </div>
+      <nav className="saved-building-shortcuts" aria-label="Saved buildings">
+        {buildings
+          .filter((building) => favourites.buildings.includes(building.code))
+          .map((building) => (
+            <button
+              key={building.code}
+              className="text-button"
+              aria-pressed={building.code === code}
+              onClick={() => {
+                const next = new URLSearchParams(query)
+                next.set('building', building.code)
+                navigate(next)
+              }}
+            >
+              {building.code}
+            </button>
+          ))}
+      </nav>
       <p className="small">
         Compare rooms on the same Toronto timeline. Scroll sideways for the full day.
       </p>

@@ -4,7 +4,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'scripts/workflow.ps1')
 $savedEnvironment = @{}
 $studentSecretNames = @(Get-ChildItem Env: | Where-Object { $_.Name -like 'STUDENT_*' } | Select-Object -ExpandProperty Name)
-foreach ($name in (@('DATABASE_URL', 'TEST_DATABASE_URL', 'INGESTION_DATABASE_URL', 'MIGRATION_DATABASE_URL', 'OPERATOR_SECRET', 'CI') + $studentSecretNames)) {
+foreach ($name in (@('DATABASE_URL', 'TEST_DATABASE_URL', 'INGESTION_DATABASE_URL', 'MIGRATION_DATABASE_URL', 'OPERATOR_SECRET', 'DATABASE_POOL_MODE', 'CI') + $studentSecretNames)) {
     $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
 }
 $results = New-Object 'System.Collections.Generic.List[object]'
@@ -18,7 +18,7 @@ try {
         Ensure-LocalPostgres $tools.docker $configuration.POSTGRES_CONTAINER $maintenance
     }
     # Tests never inherit development, ingestion or migration connections.
-    foreach ($name in (@('DATABASE_URL', 'INGESTION_DATABASE_URL', 'MIGRATION_DATABASE_URL', 'TEST_DATABASE_URL', 'OPERATOR_SECRET') + $studentSecretNames)) { [Environment]::SetEnvironmentVariable($name, $null, 'Process') }
+    foreach ($name in (@('DATABASE_URL', 'INGESTION_DATABASE_URL', 'MIGRATION_DATABASE_URL', 'TEST_DATABASE_URL', 'OPERATOR_SECRET', 'DATABASE_POOL_MODE') + $studentSecretNames)) { [Environment]::SetEnvironmentVariable($name, $null, 'Process') }
     if (-not $Fast) { $env:TEST_DATABASE_URL = $configuration.TEST_DATABASE_URL }
     $backend = Join-Path $PSScriptRoot 'backend'
     $frontend = Join-Path $PSScriptRoot 'frontend'
@@ -34,6 +34,7 @@ try {
     foreach ($entry in @(@('ESLint', 'lint'), @('Prettier', 'format:check'), @('TypeScript', 'typecheck'), @('Unit tests', 'test'), @('Build', 'build'))) {
         Invoke-WorkflowCheck Frontend $entry[0] $tools.'npm.cmd' @('run', $entry[1]) $frontend $results
     }
+    Invoke-WorkflowCheck Frontend 'Public build contents' $tools.uv @('run', '--no-env-file', '--no-sync', 'python', 'verify_public_build.py', '../frontend/dist') $backend $results
     Invoke-WorkflowCheck Frontend 'Operator build' $tools.'npm.cmd' @('run', 'build:operator') $frontend $results
     Invoke-WorkflowCheck Frontend 'Dependency audit' $tools.'npm.cmd' @('audit', '--audit-level=high') $frontend $results
     if ($Fast) {

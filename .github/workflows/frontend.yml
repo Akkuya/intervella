@@ -3,9 +3,9 @@ name: Frontend
 on:
   push:
     branches: [main, 'feat/**']
-    paths: ['frontend/**', '.github/workflows/frontend.yml']
+    paths: ['vercel.json', '.vercelignore', 'deploy/**', '.github/workflows/staging.yml', 'frontend/**', '.github/workflows/frontend.yml']
   pull_request:
-    paths: ['frontend/**', '.github/workflows/frontend.yml']
+    paths: ['vercel.json', '.vercelignore', 'deploy/**', '.github/workflows/staging.yml', 'frontend/**', '.github/workflows/frontend.yml']
 
 permissions:
   contents: read
@@ -36,6 +36,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - run: python ../backend/verify_public_build.py dist
       - run: npm run build:operator
       - run: npm audit --audit-level=high
       - run: npx playwright install --with-deps chromium

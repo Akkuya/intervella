@@ -109,7 +109,11 @@ function IntervalDialog({ selection, onClose }: { selection: Selection; onClose:
       className="interval-dialog"
     >
       <h2 id="interval-title">{selection.title}</h2>
-      <p>{selection.room}</p>
+      <p className="interval-room">{selection.room}</p>
+      <p className="interval-duration">
+        {Math.round((Date.parse(selection.end) - Date.parse(selection.start)) / 60_000)} minutes ·
+        Toronto time
+      </p>
       <p>
         {dateLabel(selection.start, true)} · {campusTimeLabel(selection.start)} to{' '}
         {nextBookingLabel(selection.end, selection.start)} Toronto time
@@ -190,9 +194,21 @@ export function Calendar({
         aria-label="Scrollable room timeline"
         tabIndex={0}
       >
-        <div className="calendar-grid" style={{ gridTemplateColumns: `140px ${width}px` }}>
+        <div
+          className="calendar-grid"
+          style={{ gridTemplateColumns: `var(--room-axis-width, 120px) ${width}px` }}
+        >
           <div className="room-axis">Room</div>
           <div className="time-axis">
+            {current !== null && (
+              <div
+                className="now-marker"
+                style={{ left: `${current}%` }}
+                aria-label={`Current Toronto time ${campusTimeLabel(now)}`}
+              >
+                Now
+              </div>
+            )}
             {ticks.map((tick) => (
               <span
                 key={tick}
@@ -304,13 +320,7 @@ export function Calendar({
                       </button>
                     ))}
                   {current !== null && (
-                    <div
-                      className="now-line"
-                      style={{ left: `${current}%` }}
-                      aria-label={`Current Toronto time ${campusTimeLabel(now)}`}
-                    >
-                      <span>Now</span>
-                    </div>
+                    <div className="now-line" style={{ left: `${current}%` }} aria-hidden="true" />
                   )}
                 </div>
               </div>

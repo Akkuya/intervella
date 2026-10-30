@@ -16,7 +16,7 @@
   --muted: var(--text-secondary);
   --border: #dcdce6;
   --line: var(--border);
-  --border-strong: #79909b;
+  --border-strong: #858592;
   --info-bg: #f0eff6;
   --info-text: #4e5260;
   --success-bg: #e5f4ee;
@@ -51,7 +51,7 @@
   --muted: var(--text-secondary);
   --border: #383b46;
   --line: var(--border);
-  --border-strong: #76909d;
+  --border-strong: #858391;
   --info-bg: #2d3038;
   --info-text: #dedde6;
   --success-bg: #1b4237;

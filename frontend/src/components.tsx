@@ -1,11 +1,11 @@
 import { Select, DatePicker, TimePicker } from './Controls.tsx'
 import { endSuggestions } from './picker-time.ts'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { Building, Freshness, StatusResponse } from './api.ts'
 import { ApiError } from './api.ts'
 import type { SearchInput } from './search.ts'
-import { requestParams } from './search.ts'
+import { readLocation, requestParams, searchParams } from './search.ts'
 import type { SearchSessionEnded } from './search.ts'
 import {
   campusDate,
@@ -19,10 +19,22 @@ import {
 import { Button, Badge } from './ui.tsx'
 
 export function ErrorPanel({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+  const coverage =
+    error instanceof ApiError &&
+    ['outside_dataset_coverage', 'coverage_unavailable'].includes(error.code)
   return (
-    <div className="state-panel error-panel" role="alert">
-      <h3>We couldn’t check the schedule</h3>
+    <div
+      className={`state-panel ${coverage ? 'coverage-panel' : 'error-panel'}`}
+      role={coverage ? 'status' : 'alert'}
+    >
+      <h3>{coverage ? 'Coverage information' : 'We couldn’t check the schedule'}</h3>
       <p>{error instanceof ApiError ? error.message : 'Check your search and try again.'}</p>
+      {coverage && (
+        <p>
+          Your filters are preserved. Try another period within the published source window.
+          Timetable coverage does not establish building opening hours.
+        </p>
+      )}
       {error instanceof ApiError && error.requestId && (
         <p className="small">
           Request reference: <code>{error.requestId}</code>
@@ -108,14 +120,25 @@ export function SearchForm({
   buildings,
   buildingsError,
   onSearch,
+  onEditing,
 }: {
   initial: SearchInput
   buildings: Building[]
   buildingsError: boolean
   onSearch: (input: SearchInput) => void
+  onEditing: (editing: boolean) => void
 }) {
   const [value, setValue] = useState(initial)
   const [error, setError] = useState('')
+  const signature = searchParams(initial).toString()
+  const [source, setSource] = useState(signature)
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => clearTimeout(timer.current), [])
+  if (source !== signature) {
+    setSource(signature)
+    setValue(initial)
+    setError('')
+  }
   let startInstant: string | undefined
   try {
     startInstant =
@@ -143,23 +166,33 @@ export function SearchForm({
     }
   }
   const update = (patch: Partial<SearchInput>) => {
-    setValue({ ...value, ...patch })
-    setError('')
-  }
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    try {
-      requestParams(value)
+    const next = { ...value, ...patch }
+    setValue(next)
+    clearTimeout(timer.current)
+    if (
+      !readLocation(window.location.search).error &&
+      searchParams(next).toString() === searchParams(initial).toString()
+    ) {
       setError('')
-      onSearch(value)
+      onEditing(false)
+      return
+    }
+    onEditing(true)
+    try {
+      requestParams(next)
+      setError('')
+      const originalQuery = window.location.search
+      timer.current = setTimeout(
+        () => {
+          if (window.location.search === originalQuery) onSearch(next)
+        },
+        'roomName' in patch ? 300 : 0,
+      )
     } catch (cause) {
       setError((cause as Error).message)
-      const target = event.currentTarget.elements.namedItem(
-        candidates.length > 1 ? 'offset' : 'date',
-      )
-      if (target instanceof HTMLElement) target.focus()
     }
   }
+  const submit = (event: FormEvent<HTMLFormElement>) => event.preventDefault()
   const durations = [...new Set([5, 15, 30, 45, 60, 90, 120, 180, 240, value.duration])].sort(
     (a, b) => a - b,
   )
@@ -254,7 +287,11 @@ export function SearchForm({
           onChange={(selection) =>
             update(
               selection === 'until'
-                ? { endDate: value.date, endTime: '', endOffset: '' }
+                ? {
+                    endDate: value.mode === 'now' ? campusDate(new Date()) : value.date,
+                    endTime: '',
+                    endOffset: '',
+                  }
                 : { endDate: undefined, endTime: undefined, endOffset: undefined },
             )
           }
@@ -385,9 +422,9 @@ export function SearchForm({
       <p id="search-error" className="form-error" role={error ? 'alert' : undefined}>
         {error}
       </p>
-      <Button type="submit">
-        Find rooms <span aria-hidden="true">↗</span>
-      </Button>
+      <p className="small" role="status">
+        {error ? 'Complete the filters to update results.' : 'Results update automatically.'}
+      </p>
       <p className="small">
         A schedule can show a gap. It can’t tell you whether a door is open or a room is occupied.
       </p>

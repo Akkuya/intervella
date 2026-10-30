@@ -24,9 +24,12 @@ export function Results({
     ['unknown', 'with unknown coverage'],
     ['inactive', 'inactive'],
   ]
-    .map(
-      ([state, label]) => `${result.data.filter((room) => room.state === state).length} ${label}`,
-    )
+    .map(([state, label]) => ({
+      count: result.data.filter((room) => room.state === state).length,
+      label,
+    }))
+    .filter(({ count }) => count > 0)
+    .map(({ count, label }) => `${count} ${label}`)
     .join(' · ')
   return (
     <>
@@ -43,9 +46,12 @@ export function Results({
       {result.meta.unknown_room_count > 0 && (
         <p className="coverage-note" role="status">
           <strong>
-            {result.meta.unknown_room_count} rooms{' '}
+            {result.meta.unknown_room_count}{' '}
+            {result.meta.unknown_room_count === 1 ? 'room' : 'rooms'}{' '}
             {params.get('include_next') === '1' || params.get('view') === 'saved'
-              ? 'have unknown coverage'
+              ? result.meta.unknown_room_count === 1
+                ? 'has unknown coverage'
+                : 'have unknown coverage'
               : 'excluded'}
           </strong>{' '}
           because coverage is incomplete, unknown, or too short for this search.
@@ -97,7 +103,6 @@ export function Results({
                   <>
                     <span>Available until</span>
                     <strong>{nextBookingLabel(room.available_until, result.query.start)}</strong>
-                    <span>Within confirmed coverage and the 24-hour search horizon.</span>
                   </>
                 ) : room.state !== 'inactive' ? (
                   <>
@@ -107,7 +112,6 @@ export function Results({
                         ? nextBookingLabel(room.next_available_start, result.query.start)
                         : 'No suitable time confirmed'}
                     </strong>
-                    <span>For this duration, within the next 24 hours of published coverage.</span>
                   </>
                 ) : (
                   <p>
@@ -127,8 +131,9 @@ export function Results({
         </div>
       )}
       <p className="small">
-        Next known openings may follow gaps with unknown coverage; they are not a claim about the
-        earliest possible availability. No later booking known never means unlimited availability.
+        Known times are bounded by published coverage and a 24-hour horizon. Next known openings may
+        follow gaps with unknown coverage; they are not a claim about the earliest possible
+        availability. No later booking known never means unlimited availability.
       </p>
       {result.meta.has_more && (
         <p className="coverage-note">

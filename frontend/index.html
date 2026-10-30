@@ -6,7 +6,7 @@
       name="description"
       content="Intervella helps UTSC students find spaces between classes using published timetable coverage. Independent student project; access and vacancy are not guaranteed."
     />
-    <meta name="theme-color" content="#102f3c" />
+    <meta name="theme-color" content="#15171b" />
     <link rel="icon" type="image/svg+xml" href="/assets/intervella.svg" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Intervella" />
@@ -16,22 +16,7 @@
       content="Scheduled classroom availability for UTSC students. Independent student project; no guarantee of access or vacancy."
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script>
-      ;(() => {
-        let choice = 'system'
-        try {
-          const saved = localStorage.getItem('utscvacant.appearance')
-          if (saved === 'light' || saved === 'dark') choice = saved
-        } catch {}
-        document.documentElement.dataset.appearance = choice
-        document.documentElement.dataset.theme =
-          choice === 'system'
-            ? matchMedia('(prefers-color-scheme: dark)').matches
-              ? 'dark'
-              : 'light'
-            : choice
-      })()
-    </script>
+    <script src="/assets/theme-init.js"></script>
     <title>Intervella · Find your space between classes</title>
   </head>
   <body>

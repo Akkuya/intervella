@@ -395,3 +395,69 @@
     padding: 14px;
   }
 }
+
+/* Same product surfaces, with a denser, explicitly private operations workspace. */
+.ops-header {
+  padding-block: 12px 20px;
+}
+.ops-intro {
+  padding-block: 28px 20px;
+}
+.ops-intro h1 {
+  font-weight: 600;
+  letter-spacing: -0.035em;
+}
+.ops-tabs {
+  gap: 4px;
+}
+.ops-tabs button {
+  min-height: 48px;
+  border-radius: 8px 8px 0 0;
+}
+.ops-tabs [aria-current] {
+  color: var(--accent);
+  background: var(--neutral-bg);
+}
+.ops-metrics {
+  gap: 12px;
+}
+.ops-metrics strong {
+  font-size: 26px;
+  font-variant-numeric: tabular-nums;
+}
+.ops-upload {
+  background: var(--neutral-bg);
+  border-radius: 12px;
+}
+.ops-card,
+.ops-login-card {
+  border-radius: 12px;
+}
+.ops-card summary {
+  cursor: pointer;
+  min-height: 44px;
+  padding-block: 10px;
+}
+@media (max-width: 767px) {
+  .ops-shell {
+    padding: 16px;
+  }
+  .ops-card {
+    padding: 16px;
+  }
+}
+
+.ops-modal .ops-id {
+  display: block;
+  padding: 12px;
+  border: 1px solid var(--warning-border);
+  border-radius: 8px;
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+.ops-modal .ops-actions .primary {
+  border: 2px solid var(--warning-border);
+}
+.ops-progress [aria-current] {
+  color: var(--accent);
+}

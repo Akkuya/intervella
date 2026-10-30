@@ -53,7 +53,7 @@ Severity indicates user impact. Critical would mean unsafe availability, data lo
 | V04 | Motion/feedback | Popups animate but general interactive color changes are abrupt. | Low | **Resolved #15:** 140ms color/border transitions, disabled by existing reduced-motion rules. Larger filter/saved choreography deferred; no layout animation. |
 | V05 | Touch density | Main inputs/bookmarks are at least 44px, but calendar cells/appearance controls include ~38px targets. | Low | **Deferred #16:** evaluate 44px coarse-pointer targets without overflowing the month grid; keep accessible primitives. |
 | V06 | Student bundle | Existing production bundle exceeds Vite's 500kB advisory (about 567kB minified after this PR). | Medium | **Deferred #16:** measure route/control splitting and font payload; no new dependency added here. |
-| O01 | Operator wizard/overview | Dense metrics, tables and manifest editor are long on phone; review progress is visually weak. | Medium | **Deferred #16:** operation-specific density, progress/review summary, structured manual-manifest guidance. No automatic inventory generation. |
+| O01 | Operator wizard/overview | Dense metrics, tables and manifest editor are long on phone; review progress is visually weak. | Medium | **Deferred #16:** operation-specific density, progress/review summary, structured manual-manifest guidance. Preserve the existing automatic manifest generation workflow. |
 | O02 | Operator errors/history | Underscore-replaced codes are technical; candidate/baseline IDs need clearer grouping. | Medium | **Deferred #16:** known-code actionable copy with safe reference disclosure and exact confirmation IDs. Never show private raw server exceptions. |
 | O03 | Operator theme startup | ThemeControl applies saved theme after mounting; student HTML also applies it earlier. Operator can flash light. | Low | **Deferred #16:** CSP-compatible early theme application; do not weaken CSP for cosmetic convenience. |
 | O04 | Privilege/publication boundary | Separate build/service, auth, trusted Origin, CSRF and confirmed IDs already exist. | High constraint | **Preserved #15:** operator UI branding only; security/publication tests remain. |
@@ -87,40 +87,42 @@ Future internal renames need a separate compatibility/rollback proposal only if 
 
 ## C. Three cohesive visual directions
 
-Proposals for #16 only. No domain purchase, hosted assets or university endorsement assumed.
+Update: Carbon Lavender supersedes the original Campus Cadence recommendation. The existing audit and screenshots document the earlier interface; validate new screenshots after the redesign is implemented.
 
-| Attribute | Campus cadence — recommended | Quiet ledger | Studio signal |
+Proposals for a future UI redesign; PR #16 was assigned to the operator manifest workflow and is already merged. No domain purchase, hosted assets or university endorsement assumed.
+
+| Attribute | Carbon Lavender — recommended | Quiet ledger | Studio signal |
 | --- | --- | --- | --- |
-| Palette | Ink `#163244`, canvas `#F3F6F8`, white `#FFFFFF`, blue `#285AC7`, green `#176148`, restrained copper `#8A4C20` | Graphite `#243638`, mist `#F0F5F3`, white `#FFFFFF`, pine `#256052`, teal-gray `#52736A`, amber `#805800` | Indigo `#252F56`, pale lavender-gray `#F3F4FA`, white `#FFFFFF`, iris `#5455BE`, slate `#61708C`, rose `#914C66` |
+| Palette | Canvas `#F7F7FA`, surface `#FFFFFF`, muted `#F0EFF6`, border `#DCDCE6`, text `#202027` / `#626473`, accent `#6650B8` | Graphite `#243638`, mist `#F0F5F3`, white `#FFFFFF`, pine `#256052`, teal-gray `#52736A`, amber `#805800` | Indigo `#252F56`, pale lavender-gray `#F3F4FA`, white `#FFFFFF`, iris `#5455BE`, slate `#61708C`, rose `#914C66` |
 | Typography | Source Sans 3 body/controls; Manrope display 600/700; tabular times without another font | IBM Plex Sans body, restrained IBM Plex Mono time labels | Public Sans body; DM Sans display 600/700, tabular figures |
-| Backgrounds/surfaces | Cool quiet canvas, solid cards, semantic ribbons; no blur | Pale green-gray page, rule-separated sections, fewer isolated panels | Nearly neutral lavender canvas, solid panels with occasional indigo edge |
+| Backgrounds/surfaces | Neutral canvas and solid surfaces; restrained lavender only for interactive emphasis | Pale green-gray page, rule-separated sections, fewer isolated panels | Nearly neutral lavender canvas, solid panels with occasional indigo edge |
 | Cards | 12px radius, strong room identity, state at right, compact code badge/timing | 8px radius, dense aligned list rows and clear disclosure | 14px radius, more open space around room title |
-| Border/shadow | Single slate outline; shadows only for overlays | Mostly rules, no card shadow, clear menu elevation | Cool thin border, one soft overlay elevation |
+| Border/shadow | Neutral charcoal or gray outline; shadows only for overlays | Mostly rules, no card shadow, clear menu elevation | Cool thin border, one soft overlay elevation |
 | Density | Balanced student controls, compact operator tables | Highest scan efficiency for many rooms | More approachable for occasional use, less dense |
-| Dark mode | Canvas `#111F2A`, panel `#192D3B`, text `#EAF1F5`, accent `#8AB4FF`; independently tuned statuses | Canvas `#152320`, panel `#20332D`, text `#E5F1EB`, accent `#91CDB7` | Canvas `#171D31`, panel `#242E47`, text `#EDF0FA`, accent `#B0ADFF` |
+| Dark mode | Canvas `#15171B`, surface `#24262D`, elevated `#2D3038`, border `#383B46`, text `#F4F3F8` / `#B6B4C0`, accent `#B6A3FF`; independently tuned statuses | Canvas `#152320`, panel `#20332D`, text `#E5F1EB`, accent `#91CDB7` | Canvas `#171D31`, panel `#242E47`, text `#EDF0FA`, accent `#B0ADFF` |
 | Signature | Interval mark and precise timeline ticks; one labelled current-time cursor | Building-grouped schedule ledger with strong alignment | Small section markers and confident text hierarchy |
-| Strength | Builds on existing tokens; calm schedule-specific identity, lower migration cost | Excellent density/operations fit | Friendly student identity and clear hierarchy |
-| Weakness | Needs disciplined grouping to avoid a generic blue dashboard; fonts must justify cost | Can feel administrative for students | More spacing/dual fonts increase page length/cost; iris cannot imply state |
+| Strength | Calm charcoal and restrained lavender give a distinctive, focused identity | Excellent density/operations fit | Friendly student identity and clear hierarchy |
+| Weakness | Requires disciplined use of accent and contrast checks; fonts must justify cost | Can feel administrative for students | More spacing/dual fonts increase page length/cost; iris cannot imply state |
 
-Choose **Campus cadence**. Its distinguishing feature is the visual grammar of an interval, not a decorative hero or animated background. Preserve #15's simple mark and functioning primitives; prioritize a stable search experience and scan order. These are proposed font roles, not a new dependency decision: if licensed self-hosted subsets cannot fit the performance budget, retain system fonts and apply the same scale/weights.
+Choose **Carbon Lavender**: charcoal rather than navy in dark mode, neutral light surfaces, and lavender reserved for branding, actions, selected states and focus. Keep availability colors independent of the brand accent. Its distinguishing feature is the visual grammar of an interval, not a decorative hero or animated background. Preserve the current portal mark and functioning primitives; prioritize a stable search experience and scan order. These are proposed font roles, not a new dependency decision: if licensed self-hosted subsets cannot fit the performance budget, retain system fonts and apply the same scale/weights.
 
 ## D. Recommended design system
 
 ### Proposed tokens
 
-Define semantic CSS properties in `index.css`, keeping temporary aliases while converting current components. No hardcoded semantic state colors inside components. The following is a #16 specification, not #15's implemented palette.
+Define semantic CSS properties in `index.css`, keeping temporary aliases while converting current components. No hardcoded semantic state colors inside components. Avoid purple-tinted page backgrounds, gradients, glassmorphism and glowing shadows. Tune control boundaries and semantic states independently against each surface; do not treat the example values below as certified contrast. The following is a future redesign specification, not the currently implemented palette.
 
 | Token | Light | Dark | Purpose |
 | --- | --- | --- | --- |
-| `--canvas` | `#F3F6F8` | `#111F2A` | Page |
-| `--surface` | `#FFFFFF` | `#192D3B` | Panels |
-| `--surface-muted` | `#E9EFF3` | `#253B4A` | Secondary blocks |
-| `--text` | `#163244` | `#EAF1F5` | Main text |
-| `--text-muted` | `#4D6573` | `#B3C5D0` | Secondary text |
-| `--border` | `#C6D3DC` | `#455E6F` | Rules |
+| `--canvas` | `#F7F7FA` | `#15171B` | Page |
+| `--surface` | `#FFFFFF` | `#24262D` | Panels |
+| `--surface-muted` | `#F0EFF6` | `#2D3038` | Secondary blocks |
+| `--text` | `#202027` | `#F4F3F8` | Main text |
+| `--text-muted` | `#626473` | `#B6B4C0` | Secondary text |
+| `--border` | `#DCDCE6` | `#383B46` | Rules |
 | `--control-border` | `#748C9D` | `#839DAC` | Input boundary |
-| `--accent` | `#285AC7` | `#8AB4FF` | Actions/focus, never availability |
-| `--on-accent` | `#FFFFFF` | `#111F2A` | Primary action label |
+| `--accent` | `#6650B8` | `#B6A3FF` | Actions/focus, never availability |
+| `--on-accent` | `#FFFFFF` | `#17151F` | Primary action label |
 | `--success-bg/text` | `#E6F3EC` / `#176148` | `#183C32` / `#A6E4C3` | Confirmed covered gap |
 | `--warning-bg/text` | `#FFF3D8` / `#704A00` | `#3F331B` / `#F3D18A` | Stale/unknown |
 | `--danger` | `#9D302B` | `#FFB7AC` | Actual errors |
@@ -162,7 +164,7 @@ Reactive search is one coordinated change to `SearchForm`, `App`, `search.ts`, `
 
 Accessibility target: WCAG 2.2 AA; semantic headings/landmarks, visible focus, comfortable 44px controls (and applicable minimum target criterion), non-color status cues, no trap, focus restored to trigger, timeline/list alternatives, 200% zoom and narrow reflow. Manual NVDA/VoiceOver and physical-phone checks are required before claiming conformance.
 
-## E. PR #16 implementation plan
+## E. Future UI redesign implementation plan
 
 Reviewable groups, with unchanged backend availability, parser, ingestion/publication and course-label permission rules:
 
@@ -170,8 +172,8 @@ Reviewable groups, with unchanged backend availability, parser, ingestion/public
 2. **Reactive search/navigation.** Coordinate `SearchForm`/`App` with existing URL/time helpers. Add tests for pacing/request counts, invalid intermediates, latest-response wins, deduplication, Back/Forward, reload, retained draft and focus. Keep exact Now/expiration. Remove Find rooms only when automatic behavior replaces it fully; keep explicit Refresh.
 3. **Results/saved items.** Refine `Results`, `RoomCard`, `FavouriteButton`, `SavedRooms`: stronger building hierarchy, concise metadata/nonzero counts. Preserve inactive/missing removal, persistence limits, mixed-state wording, coverage and independent card actions. Test cross-view saves, blocked storage, long identifiers and 67 cards without per-room request fanout.
 4. **Building/room calendars.** Refine `BuildingSchedules`, `Calendar`, `CalendarDate`, `IntervalDialog`: building heading, one Now label, slimmer mobile axis, grouped details. Preserve stable rows, cancellations, overlap lanes, unknown hatching, list alternative, scrolling and retained date. Test viewport-edge events, Escape/focus, 23/25-hour DST dates, midnight/next-day labels. No inferred off-hours.
-5. **Operator presentation.** Refine `operator.tsx`/`operator.css` with progress/review hierarchy, safe known-code messages and history. Consider safe early theme application. Preserve manual approved manifests, actual capture timestamps, CSRF/session boundaries, baseline checks, staged candidate and exact confirmation. Add expired/failed-preview/publish-conflict/unknown-source screenshots. No auto-publication or automatic manifest generation.
-6. **Whole-product gate.** Run both root check modes and CI. Repeat six-width/theme matrix, retain selected synthetic screenshots, check zoom/coarse-pointer/reduced-motion/forced-colors/keyboard. Inspect real renders and complete assistive-technology/device checks. Review private inputs, preference-key churn, provenance and label authorization. Open #16; do not auto-merge.
+5. **Operator presentation.** Refine `operator.tsx`/`operator.css` with progress/review hierarchy, safe known-code messages and history. Consider safe early theme application. Preserve manual approved manifests, actual capture timestamps, CSRF/session boundaries, baseline checks, staged candidate and exact confirmation. Add expired/failed-preview/publish-conflict/unknown-source screenshots. Preserve automatic manifest generation and require explicit publication.
+6. **Whole-product gate.** Run both root check modes and CI. Repeat six-width/theme matrix, retain selected synthetic screenshots, check zoom/coarse-pointer/reduced-motion/forced-colors/keyboard. Inspect real renders and complete assistive-technology/device checks. Review private inputs, preference-key churn, provenance and label authorization. Open a dedicated redesign PR; do not auto-merge.
 
 ### Mandatory acceptance cases
 

@@ -50,6 +50,9 @@ test('calendar selection updates URL and end shortcuts cross midnight', async ({
   await page.getByRole('button', { name: /^\+1 hr .*12:30 AM$/ }).click()
   await expect(page).toHaveURL(/end_date=2026-10-16/)
   await expect(page).toHaveURL(/end_time=00%3A30/)
+  await expect(page.locator('.search-filters summary')).toContainText(
+    'Until 12:30 AM on 2026-10-16',
+  )
   await visit(page, '/?view=buildings&building=SYN-A&schedule_date=2026-10-14')
   await page.getByRole('button', { name: /^Schedule date: / }).click()
   const day = page.getByRole('button', { name: /Thursday, October 15, 2026/ })

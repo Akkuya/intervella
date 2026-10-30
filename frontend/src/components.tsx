@@ -130,11 +130,12 @@ export function SearchForm({
 }) {
   const [value, setValue] = useState(initial)
   const [error, setError] = useState('')
-  const [source, setSource] = useState(JSON.stringify(initial))
+  const signature = searchParams(initial).toString()
+  const [source, setSource] = useState(signature)
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   useEffect(() => () => clearTimeout(timer.current), [])
-  if (source !== JSON.stringify(initial)) {
-    setSource(JSON.stringify(initial))
+  if (source !== signature) {
+    setSource(signature)
     setValue(initial)
     setError('')
   }
@@ -286,7 +287,11 @@ export function SearchForm({
           onChange={(selection) =>
             update(
               selection === 'until'
-                ? { endDate: value.date, endTime: '', endOffset: '' }
+                ? {
+                    endDate: value.mode === 'now' ? campusDate(new Date()) : value.date,
+                    endTime: '',
+                    endOffset: '',
+                  }
                 : { endDate: undefined, endTime: undefined, endOffset: undefined },
             )
           }

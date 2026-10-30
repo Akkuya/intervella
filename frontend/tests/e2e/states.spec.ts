@@ -277,7 +277,7 @@ test('keyboard controls, focus restoration and malformed bookmark recovery', asy
   await page.keyboard.press('Enter')
   await expect(page.locator('main')).toBeFocused()
   await choose(page, 'Duration', '90')
-  await page.keyboard.press('Enter')
+  await expect(page).toHaveURL(/duration=90/)
   await expect(page.getByRole('link', { name: 'View SYN-A-101' })).toBeVisible()
   await page.getByRole('link', { name: 'View SYN-A-101' }).focus()
   await page.keyboard.press('Enter')

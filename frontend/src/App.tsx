@@ -20,6 +20,7 @@ import { requestParams, searchParams } from './search.ts'
 import type { SearchInput } from './search.ts'
 import { campusTimeLabel, dateLabel, nextBookingLabel } from './time.ts'
 import { ThemeControl } from './theme.tsx'
+import { timeText } from './picker-time.ts'
 import { roomLabel } from './rooms.ts'
 import { Results } from './Results.tsx'
 import { SavedRooms } from './SavedRooms.tsx'
@@ -372,8 +373,13 @@ export default function App() {
                   <summary>
                     Search filters{' '}
                     <span>
-                      {location.search.mode === 'now' ? 'Free now' : location.search.time} ·{' '}
-                      {location.search.building || 'All buildings'} · {location.search.duration} min
+                      {location.search.mode === 'now'
+                        ? 'Free now'
+                        : `${location.search.date} at ${timeText(location.search.time)}`}{' '}
+                      · {location.search.building || 'All buildings'} ·{' '}
+                      {location.search.endDate !== undefined
+                        ? `Until ${location.search.endTime ? timeText(location.search.endTime) : 'end time'} on ${location.search.endDate}`
+                        : `${location.search.duration} min`}
                     </span>
                   </summary>
                   <SearchForm

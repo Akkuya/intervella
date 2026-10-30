@@ -13,6 +13,8 @@ from app.schemas import CoverageWindow, MeetingInfo
 from app.services.calendar import day_calendar
 from app.settings import Settings
 
+pytestmark = pytest.mark.usefixtures("authenticated_student")
+
 
 def coverage(start, end, status="complete"):
     return CoverageWindow(starts_at=start, ends_at=end, completeness=status)

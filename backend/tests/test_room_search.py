@@ -8,6 +8,8 @@ from app import db
 from app.main import create_app, utc_now
 from app.settings import Settings
 
+pytestmark = pytest.mark.usefixtures("authenticated_student")
+
 
 @pytest.fixture
 def client(postgres_engine, monkeypatch):

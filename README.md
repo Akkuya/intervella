@@ -1,5 +1,8 @@
 # Intervella (UTSC)
 
+Student timetable access now requires configured beta or university authentication. See [secure access setup](AUTHENTICATION.md) before starting the app. Existing private schedule data must not be migrated or reset as part of local auth setup.
+
+
 ![Intervella — lavender portal logo and wordmark](frontend/public/assets/intervella-wordmark.svg)
 
 

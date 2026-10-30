@@ -14,7 +14,7 @@ from app.main import create_app, utc_now
 from app.models import Dataset, DatasetState, MeetingOccurrence, Room, RoomCoverage
 from app.settings import Settings
 
-pytestmark = pytest.mark.postgres
+pytestmark = [pytest.mark.postgres, pytest.mark.usefixtures("authenticated_student")]
 NOW = datetime(2026, 10, 14, 12, 30, tzinfo=UTC)
 
 

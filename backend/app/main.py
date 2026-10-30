@@ -10,6 +10,7 @@ from typing import Annotated
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, Path, Query, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -39,6 +40,8 @@ from app.schemas import (
 )
 from app.services import availability
 from app.settings import Settings
+from app.student_auth.routes import router as auth_router
+from app.student_auth.service import StudentAuth
 
 logger = logging.getLogger("uvicorn.error")
 ReadSession = Annotated[Session, Depends(get_read_session)]
@@ -54,6 +57,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # Uvicorn's default access log includes untrusted query values; use safe route records below.
     logging.getLogger("uvicorn.access").disabled = True
     yield
+    _app.state.student_auth.close()
 
 
 def get_settings(request: Request) -> Settings:
@@ -86,12 +90,40 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         responses={code: {"model": ErrorResponse} for code in (404, 405, 422, 500, 503, 504)},
     )
     app.state.settings = settings
+    app.state.student_auth = StudentAuth()
+    app.include_router(auth_router)
 
     @app.middleware("http")
     async def error_boundary(request: Request, call_next: RequestResponseEndpoint) -> Response:
         try:
-            response = await asyncio.wait_for(
-                call_next(request), timeout=settings.request_timeout_seconds
+            async with asyncio.timeout(settings.request_timeout_seconds):
+                if request.url.path.startswith("/auth/") and request.method == "POST":
+                    size = 0
+                    chunks = []
+                    async for chunk in request.stream():
+                        size += len(chunk)
+                        if size > 4096:
+                            raise APIError(413, "invalid_request", "Sign-in request is too large.")
+                        chunks.append(chunk)
+                    # Preserve the bounded body for Starlette's downstream receive wrapper.
+                    request._body = b"".join(chunks)
+                if request.method != "OPTIONS" and request.url.path not in {
+                    "/health/live",
+                    "/auth/session",
+                    "/auth/beta",
+                    "/auth/university/code",
+                    "/auth/university/verify",
+                    "/auth/renew",
+                    "/auth/logout",
+                }:
+                    await run_in_threadpool(app.state.student_auth.require, request)
+                response = await call_next(request)
+        except APIError as error:
+            response = error_response(request, error)
+        except (SQLAlchemyError, ValueError):
+            response = error_response(
+                request,
+                APIError(503, "auth_unavailable", "Sign-in service is temporarily unavailable."),
             )
         except TimeoutError:
             response = error_response(
@@ -108,8 +140,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=list(settings.allowed_origins),
-        allow_methods=["GET"],
+        allow_origins=list(
+            dict.fromkeys(
+                (
+                    *settings.allowed_origins,
+                    *(
+                        (app.state.student_auth.config.origin,)
+                        if app.state.student_auth.config
+                        else ()
+                    ),
+                )
+            )
+        ),
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type", "X-Student-Request", "X-CSRF-Token"],
+        allow_credentials=True,
         expose_headers=["X-Request-ID"],
     )
 
@@ -119,7 +164,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         started = perf_counter()
         response = await call_next(request)
         response.headers["X-Request-ID"] = request.state.request_id
-        response.headers["Cache-Control"] = "no-cache"
+        response.headers["Cache-Control"] = "private, no-store"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Vary"] = "Cookie, Origin"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "no-referrer"
         route = request.scope.get("route")
         logger.info(
             "request_id=%s route=%s status=%s duration_ms=%.2f dataset_id=%s",

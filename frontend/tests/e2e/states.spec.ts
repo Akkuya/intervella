@@ -1,3 +1,4 @@
+import { visit } from './control-helpers.ts'
 import { choose, selected, setTime, setDate, selectTrigger } from './control-helpers.ts'
 import { test, expect } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
@@ -13,11 +14,11 @@ for (const url of ['/', '/?mode=custom&date=2026-10-14&time=09%3A00']) {
     page.on('request', (request) => {
       if (request.url().includes('/room-search')) requests++
     })
-    await page.goto(url)
+    await visit(page, url)
     await expect(page.getByRole('link', { name: 'View SYN-A-101' })).toBeVisible()
     await page.waitForLoadState('networkidle')
     const before = requests
-    await page.getByRole('button', { name: 'Find rooms' }).click()
+    await page.getByRole('button', { name: 'Refresh', exact: true }).click()
     await expect.poll(() => requests, { timeout: 1500 }).toBeGreaterThan(before)
   })
 }
@@ -39,11 +40,11 @@ test('search windows distinguish repeated times and overnight end dates', async 
       },
     }),
   )
-  await page.goto('/?mode=custom&date=2026-11-01&time=01%3A30&offset=-04%3A00')
+  await visit(page, '/?mode=custom&date=2026-11-01&time=01%3A30&offset=-04%3A00')
   await expect(page.locator('.time-strip')).toContainText('1:30 AM EDT')
   await expect(page.locator('.time-strip')).toContainText('1:30 AM EST')
   query = { ...query, start: '2026-10-15T03:30:00Z', end: '2026-10-15T04:30:00Z' }
-  await page.goto('/?mode=custom&date=2026-10-14&time=23%3A30')
+  await visit(page, '/?mode=custom&date=2026-10-14&time=23%3A30')
   await expect(page.locator('.time-strip strong')).toContainText('Oct 15')
   await expect(page.locator('.time-strip strong')).toContainText('12:30 AM')
   expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(
@@ -54,7 +55,7 @@ test('search windows distinguish repeated times and overnight end dates', async 
 
 test('service connection failure is distinct from browser offline', async ({ page }) => {
   await page.route('**/api/v1/room-search*', (route) => route.abort('failed'))
-  await page.goto('/')
+  await visit(page, '/')
   await expect(
     page.getByText('Could not reach the schedule service.', { exact: false }),
   ).toBeVisible()
@@ -66,7 +67,7 @@ test('unknown room shows safe not-found state without fabricated details', async
   await page.route('**/api/v1/rooms/999*', (route) =>
     route.fulfill({ status: 404, json: { error: { code: 'room_not_found' } } }),
   )
-  await page.goto('/?room=999')
+  await visit(page, '/?room=999')
   await expect(page.getByText('This room could not be found.', { exact: false })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'SYN-A-101', exact: true })).not.toBeVisible()
 })
@@ -74,7 +75,7 @@ test('unknown room shows safe not-found state without fabricated details', async
 test('switching from now to custom initializes the nearest five-minute Toronto time', async ({
   page,
 }) => {
-  await page.goto('/')
+  await visit(page, '/')
   await expect(page.getByRole('link', { name: 'View SYN-A-101' })).toBeVisible()
   await page.clock.fastForward(120_000)
   await page.getByLabel('Choose a time').check()
@@ -87,7 +88,7 @@ test('switching from now to custom initializes the nearest five-minute Toronto t
 test('custom query restores URL and sends Toronto instant, duration and building', async ({
   page,
 }) => {
-  await page.goto('/?mode=custom&date=2026-10-14&time=10%3A30&duration=90&building=SYN-A')
+  await visit(page, '/?mode=custom&date=2026-10-14&time=10%3A30&duration=90&building=SYN-A')
   await expect(page.getByLabel('Choose a time')).toBeChecked()
   await expect(page.getByRole('button', { name: /^Start time: / }).locator('time')).toHaveAttribute(
     'datetime',
@@ -100,7 +101,7 @@ test('custom query restores URL and sends Toronto instant, duration and building
       new URL(item.url()).searchParams.get('duration_minutes') === '30',
   )
   await choose(page, 'Duration', '30')
-  await page.getByRole('button', { name: 'Find rooms' }).click()
+  await page.getByRole('button', { name: 'Refresh', exact: true }).click()
   const params = new URL((await request).url()).searchParams
   expect(params.get('start')).toBe('2026-10-14T14:30:00.000Z')
   expect(params.get('building')).toBe('SYN-A')
@@ -126,7 +127,7 @@ test('loading is distinct from no matching rooms', async ({ page }) => {
       })
       .catch(() => {})
   })
-  await page.goto('/')
+  await visit(page, '/')
   await expect(page.getByRole('heading', { name: 'Checking the schedule…' })).toBeVisible()
   await expect(
     page.getByRole('heading', { name: 'No matching rooms for this time' }),
@@ -149,7 +150,7 @@ test('newer stale result is not masked by an older fresh status response', async
       },
     }),
   )
-  await page.goto('/')
+  await visit(page, '/')
   await expect(page.getByText('Older schedule', { exact: true })).toBeVisible()
   await expect(page.getByText('Stale source', { exact: true })).toBeVisible()
   await expect(page.getByRole('link', { name: 'View SYN-A-101' })).toBeVisible()
@@ -165,7 +166,7 @@ test('coverage error does not become empty or available rooms and server details
       headers: { 'x-request-id': 'test-reference' },
     }),
   )
-  await page.goto('/')
+  await visit(page, '/')
   await expect(page.getByText('Coverage is incomplete or unknown', { exact: false })).toBeVisible()
   await expect(page.getByRole('link', { name: 'View SYN-A-101' })).not.toBeVisible()
   await expect(page.getByText('No matching rooms for this time')).not.toBeVisible()
@@ -177,7 +178,7 @@ test('offline state hides previous availability and reconnect recovers', async (
   page,
   context,
 }) => {
-  await page.goto('/')
+  await visit(page, '/')
   await expect(page.getByRole('link', { name: 'View SYN-A-101' })).toBeVisible()
   await context.setOffline(true)
   await expect(page.getByRole('heading', { name: 'You’re offline' })).toBeVisible()
@@ -197,11 +198,10 @@ test('superseded responses cannot replace a newer search', async ({ page }) => {
       await route.fulfill({ json: available }).catch(() => {})
     } else await route.fulfill({ json: { ...available, data: [available.data[1]] } })
   })
-  await page.goto('/')
+  await visit(page, '/')
   await expect(page.getByRole('heading', { name: 'Checking the schedule…' })).toBeVisible()
   await expect(selectTrigger(page, 'Building')).toBeAttached()
   await choose(page, 'Building', 'SYN-B')
-  await page.getByRole('button', { name: 'Find rooms' }).click()
   await expect(page.getByRole('link', { name: 'View SYN-B-205' })).toBeVisible()
   release()
   await page.waitForLoadState('networkidle')
@@ -209,7 +209,7 @@ test('superseded responses cannot replace a newer search', async ({ page }) => {
 })
 
 test('DST gap is rejected and repeated time requires explicit offset', async ({ page }) => {
-  await page.goto('/')
+  await visit(page, '/')
   await expect(page.getByRole('link', { name: 'View SYN-A-101' })).toBeVisible()
   await page.getByLabel('Choose a time').check()
   await setDate(page, 'Date', '2026-03-08')
@@ -220,7 +220,6 @@ test('DST gap is rejected and repeated time requires explicit offset', async ({ 
   await page.getByRole('button', { name: 'Cancel', exact: true }).click()
   await setDate(page, 'Date', '2026-11-01')
   await setTime(page, 'Start time', '01:30')
-  await page.getByRole('button', { name: 'Find rooms' }).click()
   await expect(page.getByText('This time occurs twice', { exact: false })).toBeVisible()
   await choose(page, 'Time occurrence', '-05:00')
   const request = page.waitForRequest(
@@ -228,7 +227,7 @@ test('DST gap is rejected and repeated time requires explicit offset', async ({ 
       item.url().includes('/room-search') &&
       new URL(item.url()).searchParams.get('start') === '2026-11-01T06:30:00.000Z',
   )
-  await page.getByRole('button', { name: 'Find rooms' }).click()
+  await page.getByRole('button', { name: 'Refresh', exact: true }).click()
   await request
   await expect(page).toHaveURL(/offset=-05%3A00/)
 })
@@ -259,7 +258,7 @@ test('unknown room schedule never implies availability and remains accessible', 
       },
     }),
   )
-  await page.goto('/?mode=custom&date=2026-10-14&time=08%3A00&room=1')
+  await visit(page, '/?mode=custom&date=2026-10-14&time=08%3A00&room=1')
   await expect(page.getByRole('heading', { name: 'No meetings listed' })).toBeVisible()
   await expect(
     page.getByText('Do not assume this room is available.', { exact: false }),
@@ -277,7 +276,7 @@ test('keyboard controls, focus restoration and malformed bookmark recovery', asy
   await expect(page.getByRole('link', { name: 'Skip to main content' })).toBeFocused()
   await page.keyboard.press('Enter')
   await expect(page.locator('main')).toBeFocused()
-  await page.getByRole('button', { name: 'Find rooms' }).focus()
+  await choose(page, 'Duration', '90')
   await page.keyboard.press('Enter')
   await expect(page.getByRole('link', { name: 'View SYN-A-101' })).toBeVisible()
   await page.getByRole('link', { name: 'View SYN-A-101' }).focus()
@@ -288,7 +287,7 @@ test('keyboard controls, focus restoration and malformed bookmark recovery', asy
 test('Now refreshes at 60 seconds while a fixed search waits for dataset change', async ({
   page,
 }) => {
-  await page.goto('/')
+  await visit(page, '/')
   await expect(page.getByRole('link', { name: 'View SYN-A-101' })).toBeVisible()
   const next = page.waitForRequest(
     (item) =>
@@ -301,7 +300,7 @@ test('Now refreshes at 60 seconds while a fixed search waits for dataset change'
   page.on('request', (item) => {
     if (item.url().includes('/room-search')) count++
   })
-  await page.goto('/?mode=custom&date=2026-10-14&time=09%3A00&duration=60')
+  await visit(page, '/?mode=custom&date=2026-10-14&time=09%3A00&duration=60')
   await expect(page.getByRole('link', { name: 'View SYN-A-101' })).toBeVisible()
   await page.waitForLoadState('networkidle')
   const before = count

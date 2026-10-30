@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from './api.ts'
 import type { StatusResponse } from './api.ts'
@@ -183,7 +183,14 @@ function RoomDetails({
 }
 
 export default function App() {
+  const [editingQuery, setEditingQuery] = useState<string | null>(null)
   const query = useLocationSearch()
+  const editing = editingQuery === query
+  useEffect(() => {
+    const clearDraft = () => setEditingQuery(null)
+    window.addEventListener('popstate', clearDraft)
+    return () => window.removeEventListener('popstate', clearDraft)
+  }, [])
   const online = useOnline()
   const location = useSearchLocation(query)
   const previous = useRef({
@@ -210,6 +217,7 @@ export default function App() {
     queryFn: ({ signal }) => api.roomSearch(requestParams(location.search), signal),
     enabled:
       online &&
+      !editing &&
       !location.error &&
       !location.session &&
       location.roomId === undefined &&
@@ -241,10 +249,8 @@ export default function App() {
   savedParams.set('view', 'saved')
   const onSearch = (input: SearchInput) => {
     const params = searchParams(input)
-    const unchanged = params.toString() === searchParams(location.search).toString()
-    navigate(params)
-    if (unchanged) void result.refetch()
-    document.getElementById('results-title')?.focus()
+    setEditingQuery(null)
+    navigate(params, true)
   }
   return (
     <>
@@ -362,13 +368,22 @@ export default function App() {
             </div>
             <div className="workspace">
               <aside className="search-column">
-                <SearchForm
-                  key={searchParams(location.search).toString()}
-                  initial={location.search}
-                  buildings={buildings.data?.data ?? []}
-                  buildingsError={buildings.isError}
-                  onSearch={onSearch}
-                />
+                <details className="search-filters">
+                  <summary>
+                    Search filters{' '}
+                    <span>
+                      {location.search.mode === 'now' ? 'Free now' : location.search.time} ·{' '}
+                      {location.search.building || 'All buildings'} · {location.search.duration} min
+                    </span>
+                  </summary>
+                  <SearchForm
+                    initial={location.search}
+                    buildings={buildings.data?.data ?? []}
+                    buildingsError={buildings.isError}
+                    onSearch={onSearch}
+                    onEditing={(value) => setEditingQuery(value ? query : null)}
+                  />
+                </details>
               </aside>
               <section
                 className="results"
@@ -391,7 +406,11 @@ export default function App() {
                     type="button"
                     className="text-button"
                     disabled={
-                      result.isFetching || !online || !!location.error || !!location.session
+                      editing ||
+                      result.isFetching ||
+                      !online ||
+                      !!location.error ||
+                      !!location.session
                     }
                     onClick={() => {
                       void result.refetch()
@@ -401,7 +420,15 @@ export default function App() {
                     Refresh
                   </button>
                 </div>
-                {location.error ? (
+                {editing ? (
+                  <div className="state-panel" role="status">
+                    <h3>Updating your search</h3>
+                    <p>
+                      Complete valid filters to see matching rooms. Earlier results do not describe
+                      these changes.
+                    </p>
+                  </div>
+                ) : location.error ? (
                   <div className="state-panel error-panel" role="alert">
                     <h3>Check this saved search</h3>
                     <p>{location.error}</p>

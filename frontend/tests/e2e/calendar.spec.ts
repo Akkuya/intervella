@@ -1,3 +1,4 @@
+import { visit } from './control-helpers.ts'
 import { choose, selectTrigger } from './control-helpers.ts'
 import { test, expect } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
@@ -8,7 +9,7 @@ test.beforeEach(async ({ page }) => {
 })
 
 test('on-page room back link preserves the selected building calendar day', async ({ page }) => {
-  await page.goto('/?view=buildings&building=SYN-A&schedule_date=2026-10-15')
+  await visit(page, '/?view=buildings&building=SYN-A&schedule_date=2026-10-15')
   await page.getByRole('link', { name: 'SYN-A-101', exact: true }).click()
   await page.getByRole('link', { name: /Back to/ }).click()
   await expect(page).toHaveURL(/schedule_date=2026-10-15/)
@@ -20,7 +21,7 @@ test('on-page room back link preserves the selected building calendar day', asyn
 test('building controls preserve focus during consecutive keyboard date changes', async ({
   page,
 }) => {
-  await page.goto('/?view=buildings&building=SYN-A&schedule_date=2026-10-14')
+  await visit(page, '/?view=buildings&building=SYN-A&schedule_date=2026-10-14')
   const next = page.getByRole('button', { name: 'Next day', exact: true })
   await next.focus()
   await page.keyboard.press('Enter')
@@ -41,7 +42,7 @@ test('building controls preserve focus during consecutive keyboard date changes'
 test('room timeline, scheduled event toggle, interval details and date navigation', async ({
   page,
 }, testInfo) => {
-  await page.goto('/?room=1&schedule_date=2026-10-14')
+  await visit(page, '/?room=1&schedule_date=2026-10-14')
   await expect(page.getByRole('region', { name: 'Day calendar' })).toBeVisible()
   await expect(page.getByLabel('Show scheduled events')).toBeChecked()
   const event = page.getByRole('button', { name: /Scheduled event.*9:00 AM.*10:00 AM/ })
@@ -71,7 +72,7 @@ test('building day uses one batch, aligned rows, unknown states and room deep li
     if (request.url().includes('/buildings/SYN-A/schedule')) batch++
     if (/\/rooms\/\d+\/schedule/.test(request.url())) individual++
   })
-  await page.goto('/?view=buildings&building=SYN-A&schedule_date=2026-10-14')
+  await visit(page, '/?view=buildings&building=SYN-A&schedule_date=2026-10-14')
   await expect(page.getByRole('heading', { name: 'Building schedules', exact: true })).toBeVisible()
   await expect(page.getByRole('link', { name: 'SYN-A-102', exact: true })).toBeVisible()
   await expect(page.locator('.calendar-period.unknown')).toBeVisible()
@@ -124,7 +125,7 @@ test('calendar distinguishes repeated hours and preserves proportional intervals
       },
     }),
   )
-  await page.goto('/?room=1&schedule_date=2026-11-01')
+  await visit(page, '/?room=1&schedule_date=2026-11-01')
   const event = page.getByRole('button', { name: /Scheduled event.*1:30 AM EDT.*1:30 AM EST/ })
   await expect(event).toBeVisible()
   expect(await event.evaluate((node) => parseFloat((node as HTMLElement).style.width))).toBeCloseTo(
@@ -159,7 +160,7 @@ test('67-room calendar remains one dark-theme batch with contained mobile scroll
       },
     }),
   )
-  await page.goto('/?view=buildings&building=SYN-A&schedule_date=2026-10-14')
+  await visit(page, '/?view=buildings&building=SYN-A&schedule_date=2026-10-14')
   await expect(page.locator('.calendar-room')).toHaveCount(67)
   await expect(page.locator('.now-line')).toHaveCount(67)
   expect(batch).toBe(1)
@@ -176,7 +177,7 @@ test('building API failure and offline state do not show calendar availability',
   await page.route('**/api/v1/buildings/SYN-A/schedule*', (route) =>
     route.fulfill({ status: 503, json: { error: { code: 'database_unavailable' } } }),
   )
-  await page.goto('/?view=buildings&building=SYN-A&schedule_date=2026-10-14')
+  await visit(page, '/?view=buildings&building=SYN-A&schedule_date=2026-10-14')
   await expect(page.getByRole('alert')).toContainText('schedule service is unavailable')
   await expect(page.locator('.calendar-period')).toHaveCount(0)
   await page.context().setOffline(true)

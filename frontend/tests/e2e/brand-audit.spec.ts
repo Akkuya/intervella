@@ -1,3 +1,4 @@
+import { visit } from './control-helpers.ts'
 import { test, expect } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 import { mockAPI } from './fixtures.ts'
@@ -12,7 +13,7 @@ test('Intervella identity and saved preferences survive the rebrand', async ({ p
     localStorage.setItem('utscvacant.appearance', 'dark')
     localStorage.setItem('utscvacant.favourites', JSON.stringify({ rooms: [1], buildings: [] }))
   })
-  await page.goto('/')
+  await visit(page, '/')
   await expect(page).toHaveTitle('Intervella · Find your space between classes')
   await expect(page.locator('.brand')).toHaveText('Intervella')
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
@@ -35,7 +36,7 @@ test('Intervella identity and saved preferences survive the rebrand', async ({ p
 })
 
 test('contextual building links preserve search filters and schedule date', async ({ page }) => {
-  await page.goto('/?mode=custom&date=2026-10-14&time=08%3A00&duration=60&building=SYN-A')
+  await visit(page, '/?mode=custom&date=2026-10-14&time=08%3A00&duration=60&building=SYN-A')
   await page.getByRole('link', { name: 'View SYN-A building schedule', exact: true }).click()
   await expect(page).toHaveURL(/view=buildings/)
   await expect(page).toHaveURL(/building=SYN-A/)
@@ -48,7 +49,7 @@ test('contextual building links preserve search filters and schedule date', asyn
 })
 
 test('event visibility keeps the timeline stable and details centered', async ({ page }) => {
-  await page.goto('/?room=1&schedule_date=2026-10-14')
+  await visit(page, '/?room=1&schedule_date=2026-10-14')
   const track = page.locator('.calendar-track')
   await expect(track).toBeVisible()
   const before = await track.boundingBox()
@@ -70,19 +71,16 @@ test('event visibility keeps the timeline stable and details centered', async ({
   await expect(page.getByRole('button', { name: 'Refresh schedule', exact: true })).toBeVisible()
 })
 
-test('tall search controls keep the submit action reachable on laptops', async ({ page }) => {
+test('expanded filters remain in document flow and collapsed summary stays reachable', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1024, height: 650 })
-  await page.goto('/')
+  await visit(page, '/')
   await page.getByLabel('Choose a time', { exact: true }).check()
-  const sidebar = page.locator('.search-column')
-  await sidebar.scrollIntoViewIfNeeded()
-  const bounds = (await sidebar.boundingBox())!
-  expect(bounds.height).toBeLessThanOrEqual(610)
-  const submit = page.getByRole('button', { name: 'Find rooms', exact: true })
-  await submit.scrollIntoViewIfNeeded()
-  await expect(submit).toBeInViewport()
-  await submit.click()
-  await expect(page.locator('.form-error')).toBeEmpty()
+  await expect(page.getByRole('button', { name: 'Find rooms', exact: true })).toHaveCount(0)
+  await page.locator('.search-filters summary').click()
+  await page.locator('.search-column').scrollIntoViewIfNeeded()
+  await expect(page.locator('.search-filters summary')).toBeInViewport()
 })
 
 for (const width of [360, 390, 430, 768, 1024, 1440]) {
@@ -90,7 +88,7 @@ for (const width of [360, 390, 430, 768, 1024, 1440]) {
     test(`audit student workflows at ${width}px in ${theme}`, async ({ page }, info) => {
       await page.setViewportSize({ width, height: 900 })
       await page.emulateMedia({ colorScheme: theme })
-      await page.goto('/')
+      await visit(page, '/')
       await expect(page.getByRole('link', { name: 'View SYN-A-101', exact: true })).toBeVisible()
       const noOverflow = async () =>
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(

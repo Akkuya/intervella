@@ -1,3 +1,4 @@
+import { visit } from './control-helpers.ts'
 import { choose, selected } from './control-helpers.ts'
 import { test, expect } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
@@ -11,7 +12,7 @@ test('system theme, stored appearance, full identifiers and friendly times', asy
   page,
 }, testInfo) => {
   await page.emulateMedia({ colorScheme: 'dark' })
-  await page.goto('/')
+  await visit(page, '/')
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
   await selected(page, 'Appearance', 'system')
   await expect(page.getByRole('heading', { name: 'SYN-A-101', exact: true })).toBeVisible()
@@ -41,7 +42,7 @@ test('blocked browser storage does not prevent appearance changes or searches', 
       },
     })
   })
-  await page.goto('/')
+  await visit(page, '/')
   await choose(page, 'Appearance', 'dark')
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
   await expect(page.getByRole('link', { name: 'View SYN-A-101' })).toBeVisible()

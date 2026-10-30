@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from sqlmodel import Session
+from sqlalchemy import text
 
 from app.models import (
     Building,
@@ -18,6 +19,19 @@ from app.models import (
 NOW = datetime(2026, 10, 14, 12, tzinfo=UTC)
 DAY_START = NOW.replace(hour=4)
 DAY_END = DAY_START + timedelta(days=1)
+
+
+def activate_schedule(connection, dataset_id):
+    """Mirror publication in fixtures, including tests deliberately using old schemas."""
+    connection.execute(text("UPDATE utscvacant.dataset_state SET active_dataset_id=:id WHERE id=1"), {"id": dataset_id})
+    if connection.scalar(text("SELECT to_regclass('utscvacant.active_periods')")):
+        connection.execute(text("""
+            INSERT INTO utscvacant.active_periods (start_date,end_date,dataset_id)
+            SELECT (min(starts_at) AT TIME ZONE 'America/Toronto')::date,
+                   ((max(ends_at)-interval '1 microsecond') AT TIME ZONE 'America/Toronto')::date+1,
+                   :id FROM utscvacant.room_coverage WHERE dataset_id=:id
+            ON CONFLICT(start_date) DO UPDATE SET end_date=excluded.end_date,dataset_id=excluded.dataset_id
+        """), {"id": dataset_id})
 
 
 def make_schedule(
@@ -65,15 +79,9 @@ def make_schedule(
                 ]
             }
         for room_id, (start, end, status) in coverage.items():
-            session.add(
-                RoomCoverage(
-                    dataset_id=dataset.id,
-                    room_id=room_id,
-                    starts_at=start,
-                    ends_at=end,
-                    completeness=status,
-                )
-            )
+            session.execute(text("""INSERT INTO utscvacant.room_coverage
+                (dataset_id,room_id,starts_at,ends_at,completeness) VALUES (:dataset,:room,:start,:end,:status)"""),
+                {"dataset": dataset.id, "room": room_id, "start": start, "end": end, "status": status})
         if meetings is None:
             meetings = [
                 (1, NOW + timedelta(hours=1), NOW + timedelta(hours=2), "scheduled"),
@@ -97,7 +105,5 @@ def make_schedule(
             session.add(dataset)
             session.flush()
         if active:
-            state = session.get(DatasetState, 1)
-            state.active_dataset_id = dataset.id
-            session.add(state)
+            activate_schedule(session.connection(), dataset.id)
         return dataset.id

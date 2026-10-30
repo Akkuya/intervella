@@ -26,6 +26,7 @@ class Profile(Inventory):
     review_reason: str = Field(pattern=r"^[a-z][a-z0-9_-]{0,63}$")
     expected_rooms: int = 0
     expected_buildings: int = 0
+    window_review_audit: dict | None = None
 
 
 class ProfileApproval(Inventory):
@@ -34,6 +35,7 @@ class ProfileApproval(Inventory):
     expected_buildings: int = Field(gt=0, le=50, strict=True)
     review_reason: str = Field(pattern=r"^[a-z][a-z0-9_-]{0,63}$")
     review_acknowledged: bool = Field(strict=True)
+    window_review_audit: dict | None = None
 
 
 def inventory_value(value: Inventory) -> dict:
@@ -156,6 +158,7 @@ class ProfileStore:
                 review_reason=approval.review_reason,
                 expected_rooms=approval.expected_rooms,
                 expected_buildings=approval.expected_buildings,
+                window_review_audit=approval.window_review_audit,
             )
             body = json.dumps(profile.model_dump(mode="json"), sort_keys=True, indent=2).encode()
             if len(body) > 1024 * 1024:

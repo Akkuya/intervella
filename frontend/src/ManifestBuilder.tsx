@@ -131,6 +131,7 @@ export function ManifestBuilder({
   const [captureAck, setCaptureAck] = useState(false)
   const [targetAck, setTargetAck] = useState(false)
   const [captures, setCaptures] = useState<Record<string, string>>({})
+  const [captureEvidence, setCaptureEvidence] = useState<Record<string, string>>({})
   const [raw, setRaw] = useState('')
   const [notice, setNotice] = useState('')
   const [validated, setValidated] = useState(false)
@@ -173,6 +174,8 @@ export function ManifestBuilder({
     setDraft(null)
     setCaptureAck(false)
     setTargetAck(false)
+    setCaptures({})
+    setCaptureEvidence({})
   }
   const updateDraft = (next: ManifestDraft) => {
     setDraft(next)
@@ -301,12 +304,14 @@ export function ManifestBuilder({
             weeks: draft.weeks?.map((s) => ({
               ...s,
               fetched_at: captures[s.file] ?? s.fetched_at,
+              capture_evidence: captureEvidence[s.file] ?? s.capture_evidence,
             })),
           }
         : {
             snapshots: draft.snapshots?.map((s) => ({
               ...s,
               fetched_at: captures[s.file] ?? s.fetched_at,
+              capture_evidence: captureEvidence[s.file] ?? s.capture_evidence,
             })),
           }),
     }
@@ -801,6 +806,15 @@ export function ManifestBuilder({
                   Include the actual UTC offset. File date, modification time, upload time and the
                   current clock are not capture evidence.
                 </p>
+                <label>Capture evidence reference for {file.file}
+                  <input maxLength={500} value={captureEvidence[file.file] ??
+                    (draft.weeks ?? draft.snapshots ?? []).find((s) => s.file === file.file)?.capture_evidence ?? ''}
+                    onChange={(e) => {
+                      setCaptureEvidence({ ...captureEvidence, [file.file]: e.target.value })
+                      setCaptureAck(false)
+                      invalidate()
+                    }} />
+                </label>
               </div>
             ))}
             <label className="ops-check">

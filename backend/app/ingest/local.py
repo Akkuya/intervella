@@ -15,7 +15,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationErro
 from app.ingest.parser import parse_schedule
 
 ZONE = ZoneInfo("America/Toronto")
-PARSER_VERSION = "local-grid-v2"
+PARSER_VERSION = "local-grid-v3"
 MAX_HTML_BYTES = 10 * 1024 * 1024
 
 
@@ -51,6 +51,7 @@ class SourceBuilding(ManifestModel):
 class Snapshot(ManifestModel):
     date: date
     fetched_at: AwareDatetime
+    capture_evidence: str | None = Field(default=None, min_length=1, max_length=500)
     file: str | None = Field(default=None, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,100}\.html$")
 
 
@@ -66,6 +67,7 @@ class Manifest(ManifestModel):
     window: Window
     snapshots: list[Snapshot] = Field(min_length=7, max_length=7)
     buildings: list[SourceBuilding] = Field(min_length=1, max_length=50)
+    review_audit: dict | None = None
 
 
 @dataclass(frozen=True)
@@ -87,6 +89,7 @@ class CoverageRecord:
     starts_at: datetime
     ends_at: datetime
     completeness: str
+    source_date: date | None = None
 
 
 @dataclass(frozen=True)
@@ -108,6 +111,7 @@ class Bundle:
     input_hash: str
     sources: tuple[dict, ...]
     source_format: str = "daily"
+    review_audit: dict | None = None
 
     def report(self) -> dict:
         unknown = {item.room_key for item in self.coverage if item.completeness != "complete"}
@@ -282,6 +286,7 @@ def _normalize(
                             local_instant(day, window["start_minute"]),
                             local_instant(day, window["end_minute"]),
                             window["completeness"],
+                            day,
                         )
                     )
                 for event in raw_room["events"]:
@@ -311,6 +316,7 @@ def _normalize(
                 "date": str(day),
                 "sha256": hashlib.sha256(files[day]).hexdigest(),
                 "fetched_at": captures[day].isoformat(),
+                "capture_evidence": next(s.capture_evidence for s in manifest.snapshots if s.date == day),
             }
         )
     return Bundle(
@@ -322,6 +328,7 @@ def _normalize(
         input_hash,
         tuple(sources),
         manifest.source_format,
+        manifest.review_audit,
     )
 
 

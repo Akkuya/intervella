@@ -4,18 +4,20 @@ import hashlib
 import json
 import re
 from dataclasses import asdict
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from uuid import UUID
 
-from sqlalchemy import Engine, func, select, text, update
+from sqlalchemy import Engine, delete, func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import Session, col
 
-from app.ingest.local import PARSER_VERSION, Bundle, IngestionError, load_directory
+from app.ingest.local import PARSER_VERSION, Bundle, IngestionError, load_directory, local_instant
 from app.models import (
     Building,
+    ActivePeriod,
     Dataset,
+    DatasetSource,
     DatasetState,
     IngestionRun,
     MeetingOccurrence,
@@ -25,6 +27,17 @@ from app.models import (
 
 # Same transaction lock for staging/publication; never use a pooled session advisory lock.
 LOCK_KEY = 8506374104
+
+
+def period_baseline(session, dates):
+    start = date.fromisoformat(str(dates[0]))
+    end = date.fromisoformat(str(dates[-1])) + timedelta(days=1)
+    overlaps = session.scalars(select(ActivePeriod).where(
+        col(ActivePeriod.start_date) < end, col(ActivePeriod.end_date) > start
+    )).all()
+    if any(p.start_date != start or p.end_date != end for p in overlaps):
+        raise IngestionError("overlapping_active_period")
+    return overlaps[0].dataset_id if overlaps else None
 
 
 def _reason(value: str | None) -> str | None:
@@ -115,6 +128,7 @@ def _digest(session: Session, dataset_id: UUID) -> str:
             col(RoomCoverage.starts_at),
             col(RoomCoverage.ends_at),
             col(RoomCoverage.completeness),
+            col(RoomCoverage.source_date),
         )
         .where(col(RoomCoverage.dataset_id) == dataset_id)
         .order_by(col(RoomCoverage.room_id), col(RoomCoverage.starts_at))
@@ -136,7 +150,9 @@ def _digest(session: Session, dataset_id: UUID) -> str:
         .where(col(Room.id).in_({row.room_id for row in coverage}))
         .order_by(col(Room.id))
     ).all()
-    payload = [[list(row) for row in rows] for rows in [[metadata], coverage, meetings, identities]]
+    sources = session.execute(select(col(DatasetSource.date), col(DatasetSource.fetched_at))
+        .where(col(DatasetSource.dataset_id) == dataset_id).order_by(col(DatasetSource.date))).all()
+    payload = [[list(row) for row in rows] for rows in [[metadata], coverage, meetings, identities, sources]]
     return hashlib.sha256(
         json.dumps(payload, default=str, separators=(",", ":")).encode()
     ).hexdigest()
@@ -245,6 +261,7 @@ def _stage(engine: Engine, bundle: Bundle, run_id: UUID, reason: str | None) -> 
     with Session(engine) as session, session.begin():
         state = _lock(session)
         run = session.get_one(IngestionRun, run_id)
+        baseline_id = period_baseline(session, bundle.dates)
         existing = session.execute(
             select(Dataset)
             .join(IngestionRun)
@@ -264,6 +281,10 @@ def _stage(engine: Engine, bundle: Bundle, run_id: UUID, reason: str | None) -> 
         dataset = Dataset(run_id=run.id, source_fetched_at=bundle.source_fetched_at)
         session.add(dataset)
         session.flush()
+        session.add_all([DatasetSource(dataset_id=dataset.id, date=date.fromisoformat(s["date"]),
+            fetched_at=datetime.fromisoformat(s["fetched_at"])) for s in bundle.sources])
+        period_start = local_instant(bundle.dates[0], 0)
+        period_end = local_instant(bundle.dates[-1] + timedelta(days=1), 0)
         room_ids: dict[tuple[str, str], int] = {}
         for room in bundle.rooms:
             session.execute(
@@ -296,11 +317,12 @@ def _stage(engine: Engine, bundle: Bundle, run_id: UUID, reason: str | None) -> 
                 RoomCoverage(
                     dataset_id=dataset.id,
                     room_id=room_ids[item.room_key],
-                    starts_at=item.starts_at,
-                    ends_at=item.ends_at,
+                    starts_at=max(item.starts_at, period_start),
+                    ends_at=min(item.ends_at, period_end),
                     completeness=item.completeness,
+                    source_date=item.source_date,
                 )
-                for item in bundle.coverage
+                for item in bundle.coverage if item.starts_at < period_end and item.ends_at > period_start
             ]
         )
         session.add_all(
@@ -308,12 +330,12 @@ def _stage(engine: Engine, bundle: Bundle, run_id: UUID, reason: str | None) -> 
                 MeetingOccurrence(
                     dataset_id=dataset.id,
                     room_id=room_ids[item.room_key],
-                    starts_at=item.starts_at,
-                    ends_at=item.ends_at,
+                    starts_at=max(item.starts_at, period_start),
+                    ends_at=min(item.ends_at, period_end),
                     status=item.status,
                     source_key=item.source_key,
                 )
-                for item in bundle.meetings
+                for item in bundle.meetings if item.starts_at < period_end and item.ends_at > period_start
             ]
         )
         session.flush()
@@ -321,12 +343,13 @@ def _stage(engine: Engine, bundle: Bundle, run_id: UUID, reason: str | None) -> 
             **bundle.report(),
             "parser_version": PARSER_VERSION,
             "sources": list(bundle.sources),
+            "review_audit": bundle.review_audit,
             "room_records": [asdict(room) for room in bundle.rooms],
             "baseline_dataset_id": str(state.active_dataset_id)
             if state.active_dataset_id
             else None,
         }
-        anomalies = _anomalies(session, dataset, counts, state.active_dataset_id)
+        anomalies = _anomalies(session, dataset, counts, baseline_id)
         if anomalies and reason is None:
             raise IngestionError(
                 "review_required", report={**bundle.report(), "anomalies": anomalies}
@@ -347,119 +370,116 @@ def _stage(engine: Engine, bundle: Bundle, run_id: UUID, reason: str | None) -> 
         }
 
 
-def publish_dataset(
-    engine: Engine,
-    dataset_id: str | UUID,
-    *,
-    review_reason: str | None = None,
-    expected_baseline: str | None = None,
-) -> dict:
-    run_id = None
-    input_hash = hashlib.sha256(b"unknown-candidate").hexdigest()
+def publish_dataset(engine: Engine, dataset_id: str | UUID, *,
+                    review_reason: str | None = None, expected_baseline: str | None = None) -> dict:
+    return publish_datasets(engine, [dataset_id], review_reason=review_reason,
+                            expected_baseline=expected_baseline)["publications"][0]
+
+
+def publish_datasets(engine: Engine, dataset_ids, *, review_reason=None, expected_baseline=None):
+    """All selected periods commit together; unrelated active periods are retained."""
+    reason = _reason(review_reason)
+    ids = [UUID(str(value)) for value in dataset_ids]
+    if not 1 <= len(ids) <= 12 or len(set(ids)) != len(ids):
+        raise IngestionError("invalid_publication_selection")
     try:
-        reason = _reason(review_reason)
-        dataset_id = UUID(str(dataset_id))
         with Session(engine) as session, session.begin():
             state = _lock(session)
-            # None preserves CLI behavior; an empty string confirms no active dataset.
-            current_id = str(state.active_dataset_id) if state.active_dataset_id else ""
-            if expected_baseline is not None and expected_baseline != current_id:
+            current = str(state.active_dataset_id) if state.active_dataset_id else ""
+            if expected_baseline is not None and expected_baseline != current:
                 raise IngestionError("publication_baseline_changed")
-            dataset = session.execute(
-                select(Dataset).where(col(Dataset.id) == dataset_id).with_for_update()
-            ).scalar_one_or_none()
-            if dataset is None:
-                raise IngestionError("dataset_not_found")
-            if state.active_dataset_id == dataset.id:
-                return {"status": "unchanged", "dataset_id": str(dataset.id)}
-            if dataset.published_at is not None:
-                raise IngestionError("already_published")
-            run_id = dataset.run_id
-            run = session.execute(
-                select(IngestionRun).where(col(IngestionRun.id) == run_id).with_for_update()
-            ).scalar_one()
-            input_hash = run.input_hash
-            counts = run.counts
-            if run.status != "succeeded" or counts.get("parser_version") not in {
-                "local-grid-v1",
-                PARSER_VERSION,
-            }:
-                raise IngestionError("candidate_not_validated")
-            if counts.get("candidate_digest") != _digest(session, dataset.id):
-                raise IngestionError("candidate_changed")
-            previous = (
-                session.get_one(Dataset, state.active_dataset_id)
-                if state.active_dataset_id
-                else None
-            )
-            if previous and dataset.source_fetched_at <= previous.source_fetched_at:
-                raise IngestionError("older_source")
-            if previous:
-                previous_run = session.get_one(IngestionRun, previous.run_id)
-                old_sources = {
-                    item["date"]: item for item in previous_run.counts.get("sources", [])
-                }
-                for source in counts["sources"]:
-                    old = old_sources.get(source["date"])
-                    if old and (
-                        source["fetched_at"] < old["fetched_at"]
-                        or (
-                            source["fetched_at"] == old["fetched_at"]
-                            and source["sha256"] != old["sha256"]
-                        )
-                    ):
+            results = []
+            selected_periods = []
+            for dataset_id in ids:
+                dataset = session.execute(select(Dataset).where(col(Dataset.id) == dataset_id)
+                                          .with_for_update()).scalar_one_or_none()
+                if dataset is None:
+                    raise IngestionError("dataset_not_found")
+                run = session.get_one(IngestionRun, dataset.run_id)
+                counts = run.counts
+                dates = counts.get("dates", [])
+                if len(dates) != 7 or dates != [str(date.fromisoformat(dates[0]) + timedelta(days=i))
+                                               for i in range(7)]:
+                    raise IngestionError("candidate_period_invalid")
+                start = date.fromisoformat(dates[0])
+                end = date.fromisoformat(dates[-1]) + timedelta(days=1)
+                if any(left < end and right > start for left, right in selected_periods):
+                    raise IngestionError("overlapping_candidates")
+                selected_periods.append((start, end))
+                previous_id = period_baseline(session, dates)
+                if previous_id == dataset.id:
+                    results.append({"status": "unchanged", "dataset_id": str(dataset.id)})
+                    continue
+                if dataset.published_at is not None:
+                    raise IngestionError("already_published")
+                if run.status != "succeeded" or counts.get("parser_version") != PARSER_VERSION:
+                    raise IngestionError("candidate_not_validated")
+                if counts.get("candidate_digest") != _digest(session, dataset.id):
+                    raise IngestionError("candidate_changed")
+                previous = session.get_one(Dataset, previous_id) if previous_id else None
+                if previous:
+                    old_counts = session.get_one(IngestionRun, previous.run_id).counts
+                    old_sources = {item["date"]: item for item in old_counts.get("sources", [])}
+                    if not old_sources and dataset.source_fetched_at < previous.source_fetched_at:
                         raise IngestionError("older_source")
-            anomalies = _anomalies(session, dataset, counts, state.active_dataset_id)
-            baseline = str(state.active_dataset_id) if state.active_dataset_id else None
-            saved_reason = (
-                counts.get("review_reason") if counts["baseline_dataset_id"] == baseline else None
-            )
-            if anomalies and not (reason or saved_reason):
-                raise IngestionError("review_required", report={"publication_anomalies": anomalies})
-            inventory = select(col(RoomCoverage.room_id)).where(
-                col(RoomCoverage.dataset_id) == dataset.id
-            )
-            session.execute(
-                update(Room)
-                .where(col(Room.active).is_(True), col(Room.id).not_in(inventory))
-                .values(active=False)
-            )
-            for room_record in counts["room_records"]:
-                building = session.execute(
-                    select(Building).where(col(Building.code) == room_record["building_code"])
-                ).scalar_one()
-                building.name = room_record["building_name"]
-                room = session.execute(
-                    select(Room).where(
-                        col(Room.building_id) == building.id,
-                        col(Room.room_number) == room_record["room_number"],
-                    )
-                ).scalar_one()
-                room.capacity = room_record["capacity"]
-                room.active = True
-                session.add_all([building, room])
-            run.counts = {
-                **counts,
-                "publication_anomalies": anomalies,
-                "publication_review_reason": reason or saved_reason,
-                "published_over": baseline,
-            }
-            session.add(run)
+                    for source in counts["sources"]:
+                        old = old_sources.get(source["date"])
+                        if old:
+                            captured = datetime.fromisoformat(source["fetched_at"])
+                            prior = datetime.fromisoformat(old["fetched_at"])
+                            if captured < prior or (captured == prior and source["sha256"] != old["sha256"]):
+                                raise IngestionError("older_source")
+                anomalies = _anomalies(session, dataset, counts, previous_id)
+                baseline = str(state.active_dataset_id) if state.active_dataset_id else None
+                saved_reason = counts.get("review_reason") if counts.get("baseline_dataset_id") == baseline else None
+                if anomalies and not (reason or saved_reason):
+                    raise IngestionError("review_required", report={"publication_anomalies": anomalies})
+                # Shared room metadata must remain true for retained periods as well.
+                retained = select(col(ActivePeriod.dataset_id)).where(col(ActivePeriod.dataset_id) != previous_id) if previous_id else select(col(ActivePeriod.dataset_id))
+                for record in counts["room_records"]:
+                    building = session.execute(select(Building).where(
+                        col(Building.code) == record["building_code"])).scalar_one()
+                    room = session.execute(select(Room).where(col(Room.building_id) == building.id,
+                        col(Room.room_number) == record["room_number"])).scalar_one()
+                    retained_room = session.scalar(select(col(RoomCoverage.room_id)).where(
+                        col(RoomCoverage.dataset_id).in_(retained), col(RoomCoverage.room_id) == room.id).limit(1))
+                    retained_building = session.scalar(select(col(RoomCoverage.room_id)).join(Room,
+                        col(Room.id) == col(RoomCoverage.room_id)).where(
+                        col(RoomCoverage.dataset_id).in_(retained), col(Room.building_id) == building.id).limit(1))
+                    if ((retained_room and room.capacity != record["capacity"])
+                        or (retained_building and building.name != record["building_name"])):
+                        raise IngestionError("active_inventory_metadata_conflict")
+                    building.name = record["building_name"]
+                    room.capacity = record["capacity"]
+                    session.add_all([building, room])
+                run.counts = {**counts, "publication_anomalies": anomalies,
+                    "publication_review_reason": reason or saved_reason,
+                    "published_over": str(previous_id) if previous_id else None,
+                    "publication_selection": [str(value) for value in ids]}
+                session.add(run)
+                dataset.published_at = datetime.now(UTC)
+                session.add(dataset)
+                session.flush()
+                if previous_id:
+                    session.execute(delete(ActivePeriod).where(col(ActivePeriod.dataset_id) == previous_id))
+                session.add(ActivePeriod(start_date=start, end_date=end, dataset_id=dataset.id))
+                session.flush()
+                results.append({"status": "published", "dataset_id": str(dataset.id), "run_id": str(run.id)})
+            inventory = select(col(RoomCoverage.room_id)).join(ActivePeriod,
+                col(ActivePeriod.dataset_id) == col(RoomCoverage.dataset_id))
+            session.execute(update(Room).values(active=col(Room.id).in_(inventory)))
+            changed = [item for item in results if item["status"] == "published"]
+            if changed:
+                state.active_dataset_id = UUID(changed[-1]["dataset_id"])
+                session.add(state)
             session.flush()
-            dataset.published_at = datetime.now(UTC)
-            session.add(dataset)
-            session.flush()
-            state.active_dataset_id = dataset.id
-            session.add(state)
-            session.flush()
-            return {"status": "published", "dataset_id": str(dataset.id), "run_id": str(run.id)}
+            return {"publications": results}
     except Exception as exc:
-        # Never invalidate the successful run of an already-published historical dataset.
-        if run_id is None:
-            raise (
-                exc if isinstance(exc, IngestionError) else IngestionError("publication_failed")
-            ) from None
-        raise _failure(engine, exc, input_hash, run_id) from None
+        failure = exc if isinstance(exc, IngestionError) else IngestionError("publication_failed")
+        # Separate failed-attempt audit never invalidates otherwise reusable staged candidates.
+        failure.report = {**(failure.report or {}), "phase": "publication",
+                          "related_dataset_ids": [str(value) for value in ids]}
+        raise _failure(engine, failure, hashlib.sha256(str(ids).encode()).hexdigest()) from None
 
 
 def ingestion_status(engine: Engine) -> dict:

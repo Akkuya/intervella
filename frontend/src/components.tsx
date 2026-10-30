@@ -78,7 +78,15 @@ export function SessionNotice({ session }: { session: SearchSessionEnded }) {
 }
 
 export function FreshnessNote({ meta, status }: { meta: Freshness; status?: StatusResponse }) {
-  const current =
+  const latestSources = meta.sources?.flatMap((source) => status?.sources?.filter((s) =>
+    s.dataset_id === source.dataset_id && (source.date === null || s.date === source.date) &&
+    (source.date === null || s.fetched_at === source.fetched_at)) ?? []) ?? []
+  const sourceStatusCurrent = !!meta.sources?.length && meta.sources.every((source) =>
+    latestSources.some((s) => s.dataset_id === source.dataset_id && (source.date === null || s.date === source.date)))
+  const current = sourceStatusCurrent && status && status.publication_id === meta.publication_id &&
+    Date.parse(status.generated_at) > Date.parse(meta.generated_at)
+    ? { ...meta, freshness: latestSources.some((s) => s.freshness === 'stale') ? 'stale' : 'fresh' }
+    : !meta.sources?.length &&
     status?.dataset_id === meta.dataset_id &&
     Date.parse(status.generated_at) > Date.parse(meta.generated_at)
       ? status
@@ -110,6 +118,9 @@ export function FreshnessNote({ meta, status }: { meta: Freshness; status?: Stat
           Last checked {dateLabel(meta.generated_at, true)} at {campusTimeLabel(meta.generated_at)}{' '}
           Toronto time. Source freshness does not guarantee physical vacancy.
         </p>
+        {(sourceStatusCurrent ? latestSources : meta.sources)?.map((source) => <p key={`${source.dataset_id}-${source.date}`}>
+          {source.date ?? 'Legacy source'}: {dateLabel(source.fetched_at, true)} at {campusTimeLabel(source.fetched_at)} Toronto time · {source.freshness}.
+        </p>)}
       </details>
     </div>
   )

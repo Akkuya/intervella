@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 import pytest
-from schedule_helpers import DAY_END, DAY_START, NOW, make_schedule
+from schedule_helpers import DAY_END, DAY_START, NOW, activate_schedule, make_schedule
 from sqlalchemy import event, text
 from sqlalchemy.exc import DBAPIError
 from sqlmodel import Session
@@ -197,14 +197,11 @@ def test_publication_race_keeps_metadata_coverage_and_rooms_in_one_snapshot(
         if (
             not switched
             and statement.lstrip().upper().startswith("SELECT")
-            and "dataset_state" in statement
+            and "active_periods" in statement
         ):
             switched.append(True)
             with postgres_engine.begin() as writer:
-                writer.execute(
-                    text("UPDATE utscvacant.dataset_state SET active_dataset_id=:id WHERE id=1"),
-                    {"id": new},
-                )
+                activate_schedule(writer, new)
                 writer.execute(text("UPDATE utscvacant.rooms SET active=false WHERE id=2"))
 
     monkeypatch.setattr(db, "get_engine", lambda: postgres_engine)

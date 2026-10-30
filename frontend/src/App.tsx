@@ -45,13 +45,13 @@ function RoomDetails({
   query: string
 }) {
   const room = useQuery({
-    queryKey: ['room', id, status?.dataset_id],
+    queryKey: ['room', id, (status?.publication_id ?? status?.dataset_id)],
     queryFn: ({ signal }) => api.room(id, signal),
     enabled: online,
     staleTime: Infinity,
   })
   const schedule = useQuery({
-    queryKey: ['room-schedule', id, date, status?.dataset_id],
+    queryKey: ['room-schedule', id, date, (status?.publication_id ?? status?.dataset_id)],
     queryFn: ({ signal }) => api.schedule(id, date, signal),
     enabled: online,
     staleTime: Infinity,
@@ -209,13 +209,13 @@ export default function App() {
     refetchOnWindowFocus: true,
   })
   const buildings = useQuery({
-    queryKey: ['buildings', status.data?.dataset_id],
+    queryKey: ['buildings', (status.data?.publication_id ?? status.data?.dataset_id)],
     queryFn: ({ signal }) => api.buildings(signal),
     enabled: online,
     staleTime: Infinity,
   })
   const result = useQuery({
-    queryKey: ['availability', searchParams(location.search).toString(), status.data?.dataset_id],
+    queryKey: ['availability', searchParams(location.search).toString(), (status.data?.publication_id ?? status.data?.dataset_id)],
     queryFn: ({ signal }) => api.roomSearch(requestParams(location.search), signal),
     enabled:
       online &&

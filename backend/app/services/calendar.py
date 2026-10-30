@@ -20,6 +20,7 @@ from app.schemas import (
     RoomInfo,
     TimeWindow,
 )
+from app.services.published import dataset_ids
 from app.services.intervals import complete_windows, merge_intervals
 
 MAX_ROOMS = 100
@@ -98,13 +99,13 @@ def building_schedule(
 ) -> BuildingScheduleResponse:
     from app.services.availability import active_dataset, campus_day_bounds, freshness
 
-    dataset = active_dataset(session)
     building = session.execute(
         select(Building).where(col(Building.code) == code)
     ).scalar_one_or_none()
     if building is None:
         raise APIError(404, "building_not_found", "Building not found.")
     start, end = campus_day_bounds(day)
+    dataset = active_dataset(session, start, end)
     rooms = session.scalars(
         select(Room)
         .where(col(Room.building_id) == building.id, col(Room.active).is_(True))
@@ -117,7 +118,7 @@ def building_schedule(
     windows = session.scalars(
         select(RoomCoverage)
         .where(
-            col(RoomCoverage.dataset_id) == dataset.id,
+            col(RoomCoverage.dataset_id).in_(dataset_ids(dataset)),
             col(RoomCoverage.room_id).in_(room_ids),
             col(RoomCoverage.starts_at) < end,
             col(RoomCoverage.ends_at) > start,
@@ -128,7 +129,7 @@ def building_schedule(
     meetings = session.scalars(
         select(MeetingOccurrence)
         .where(
-            col(MeetingOccurrence.dataset_id) == dataset.id,
+            col(MeetingOccurrence.dataset_id).in_(dataset_ids(dataset)),
             col(MeetingOccurrence.room_id).in_(room_ids),
             col(MeetingOccurrence.starts_at) < end,
             col(MeetingOccurrence.ends_at) > start,

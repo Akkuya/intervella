@@ -3,6 +3,20 @@ import test from 'node:test'
 import { api, ApiError } from '../../src/api.ts'
 import { room, schedule, available } from '../e2e/fixtures.ts'
 
+test('source-day freshness and publication tokens survive response validation', async (t) => {
+  const body = structuredClone(available)
+  body.meta.publication_id = '00000000-0000-0000-0000-000000000203'
+  body.meta.dataset_ids = [body.meta.dataset_id]
+  body.meta.sources = [{ dataset_id: body.meta.dataset_id, date: '2026-10-14',
+    fetched_at: body.meta.source_fetched_at, freshness: 'fresh' }]
+  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify(body)))
+  const result = await api.roomSearch({ start: body.query.start })
+  assert.equal(result.meta.publication_id, body.meta.publication_id)
+  assert.deepEqual(result.meta.sources, body.meta.sources)
+  body.meta.sources[0].fetched_at = 'not-a-capture-timestamp'
+  await assert.rejects(api.roomSearch({ start: body.query.start }), { code: 'invalid_response' })
+})
+
 test('client uses same-origin API, encoded parameters, cancellation and same-origin session cookies', async (t) => {
   const signal = new AbortController().signal
   t.mock.method(globalThis, 'fetch', async (url: string, options: RequestInit) => {

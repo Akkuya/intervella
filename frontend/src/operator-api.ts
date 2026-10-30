@@ -16,6 +16,14 @@ export interface OpsRun {
   counts: Record<string, unknown>
 }
 export interface OpsHealth {
+  active_periods: {
+    start_date: string
+    end_date: string
+    dataset_id: string
+    source_fetched_at: string
+    freshness: string
+    days: { date: string; fetched_at: string }[]
+  }[]
   active: null | {
     dataset_id: string
     published_at: string
@@ -45,6 +53,7 @@ export interface Preview {
   sources: { date: string; fetched_at: string }[]
   comparison: {
     baseline_dataset_id: string | null
+    replaced_dataset_id?: string | null
     added_rooms: string[]
     missing_rooms: string[]
     capacity_changes: { room: string; previous: number; candidate: number }[]
@@ -94,6 +103,13 @@ const errorHelp: Record<string, string> = {
     'The timetable touches an unresolved Toronto DST gap or repeated hour. This source cannot safely establish that interval.',
   invalid_request:
     'Check the reviewed fields, required identities and timezone-aware capture timestamps.',
+  source_year_required: 'This weekly caption has no year. Supply the verified year of its Sunday start.',
+  coverage_window_not_eligible: 'Only independently reviewed continuous, complete observed grids can be bulk approved. Resolve blocked or inconsistent rooms first.',
+  capture_evidence_required: 'Enter a capture evidence reference for each original export. Upload time and filenames cannot establish capture time.',
+  overlapping_active_period: 'These dates partially overlap an active period. Replace its exact seven-day range or resolve the period transition explicitly.',
+  older_source: 'A source is older than the active source for the same dates, or has different content at the same capture time. It cannot replace that week.',
+  active_inventory_metadata_conflict: 'Capacity or building metadata conflicts with another retained active period. Resolve the shared inventory before publishing.',
+  publication_baseline_changed: 'Another publication committed after your review. Refresh and review publication again.',
 }
 
 export async function opsRequest<T>(
@@ -161,6 +177,7 @@ export interface InventoryProfile extends Inventory {
 export interface ManifestSource {
   file: string
   fetched_at: string
+  capture_evidence?: string | null
   date?: string
   week_start?: string
 }
@@ -183,6 +200,7 @@ export interface SourceAnalysis {
     capacity: number
     window: InventoryWindow
     row_minutes: number[]
+    bulk_eligible: boolean
   }[]
   analysis_hash: string
   source_format: 'daily' | 'weekly'
@@ -208,7 +226,7 @@ export interface SourceAnalysis {
     missing_rooms: string[]
     unmatched_rooms: string[]
     capacity_changes: { room: string; expected: number; observed: number }[]
-    window_changes: { room: string; expected: InventoryWindow; observed: InventoryWindow }[]
+    window_changes: { room: string; source_building?: string | null; expected: InventoryWindow; observed: InventoryWindow; eligible: boolean }[]
     source_id_changes: { room: string; expected: number; observed: number }[]
   }
 }

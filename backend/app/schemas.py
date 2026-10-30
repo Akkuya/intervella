@@ -94,6 +94,9 @@ class FreshnessMetadata(BaseModel):
     freshness: Literal["fresh", "stale"]
     generated_at: UTCDateTime
     warnings: list[str] = Field(default_factory=list)
+    dataset_ids: list[UUID] = Field(default_factory=list)
+    sources: list[dict] = Field(default_factory=list)
+    publication_id: UUID | None = None
 
 
 class AvailabilityMetadata(FreshnessMetadata):

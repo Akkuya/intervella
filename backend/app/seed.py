@@ -1,7 +1,7 @@
 """Deterministic, synthetic-only development data. Never fetches a schedule source."""
 
 import argparse
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from hashlib import sha256
 from uuid import UUID
 
@@ -11,6 +11,7 @@ from sqlmodel import Session, select
 
 from app.db import create_db_engine
 from app.models import (
+    ActivePeriod,
     Building,
     Dataset,
     DatasetState,
@@ -113,6 +114,8 @@ def seed_synthetic(engine: Engine) -> None:
                 error_code="synthetic_failure",
             )
         )
+        session.add(ActivePeriod(start_date=date(2026, 10, 14), end_date=date(2026, 10, 15),
+                                 dataset_id=CURRENT_DATASET))
         state.active_dataset_id = CURRENT_DATASET
         session.add(state)
         session.flush()

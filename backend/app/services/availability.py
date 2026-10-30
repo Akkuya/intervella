@@ -7,7 +7,8 @@ from sqlalchemy import Select, func, select
 from sqlmodel import Session, col
 
 from app.errors import APIError
-from app.models import Building, Dataset, DatasetState, MeetingOccurrence, Room, RoomCoverage
+from app.models import Building, Dataset, MeetingOccurrence, Room, RoomCoverage
+from app.services.published import dataset_ids, payload_bounds, published_schedule
 from app.schemas import (
     AvailabilityMetadata,
     AvailabilityResponse,
@@ -40,48 +41,47 @@ def campus_day_bounds(day: date) -> tuple[datetime, datetime]:
         ) from None
 
 
-def active_dataset(session: Session) -> Dataset:
-    dataset = session.execute(
-        select(Dataset)
-        .join(DatasetState, col(DatasetState.active_dataset_id) == col(Dataset.id))
-        .where(col(DatasetState.id) == 1, col(Dataset.published_at).is_not(None))
-    ).scalar_one_or_none()
-    if dataset is None:
-        raise APIError(503, "dataset_unavailable", "No published schedule is available.")
-    return dataset
+def active_dataset(session: Session, start=None, end=None):
+    return published_schedule(session, start, end)
 
 
-def freshness(dataset: Dataset, now: datetime, max_age_hours: float = 36) -> FreshnessMetadata:
+def freshness(dataset, now: datetime, max_age_hours: float = 36) -> FreshnessMetadata:
+    sources = getattr(dataset, "source_days", ())
     stale = now - dataset.source_fetched_at > timedelta(hours=max_age_hours)
     return FreshnessMetadata(
-        dataset_id=dataset.id,
+        dataset_id=dataset.id, dataset_ids=dataset_ids(dataset),
+        publication_id=getattr(dataset, "publication_id", dataset.id),
         source_fetched_at=dataset.source_fetched_at,
-        freshness="stale" if stale else "fresh",
-        generated_at=now,
+        freshness="stale" if stale else "fresh", generated_at=now,
         warnings=["stale_dataset"] if stale else [],
+        sources=[{**source, "freshness": "stale" if now - source["fetched_at"] > timedelta(hours=max_age_hours)
+                  else "fresh"} for source in sources],
     )
 
 
 def dataset_period(session: Session, dataset: Dataset) -> Period | None:
+    left, right = payload_bounds(dataset, col(RoomCoverage.starts_at), col(RoomCoverage.ends_at), col(RoomCoverage.dataset_id))
     start, end = session.execute(
-        select(func.min(col(RoomCoverage.starts_at)), func.max(col(RoomCoverage.ends_at)))
+        select(func.min(left), func.max(right))
         .join(Room, col(Room.id) == col(RoomCoverage.room_id))
-        .where(col(RoomCoverage.dataset_id) == dataset.id, col(Room.active).is_(True))
+        .where(col(RoomCoverage.dataset_id).in_(dataset_ids(dataset)), col(Room.active).is_(True), left < right)
     ).one()
     return Period(start=start, end=end) if start is not None and end is not None else None
 
 
 def complete_coverage(dataset: Dataset, start: datetime, end: datetime):
+    left, right = payload_bounds(dataset, col(RoomCoverage.starts_at), col(RoomCoverage.ends_at), col(RoomCoverage.dataset_id))
     covered = (
         select(
             func.range_agg(
-                func.tstzrange(col(RoomCoverage.starts_at), col(RoomCoverage.ends_at), "[)")
+                func.tstzrange(left, right, "[)")
             )
         )
         .where(
-            col(RoomCoverage.dataset_id) == dataset.id,
+            col(RoomCoverage.dataset_id).in_(dataset_ids(dataset)),
             col(RoomCoverage.room_id) == col(Room.id),
             col(RoomCoverage.completeness) == "complete",
+            left < right,
         )
         .correlate(Room)
         .scalar_subquery()
@@ -89,11 +89,11 @@ def complete_coverage(dataset: Dataset, start: datetime, end: datetime):
     uncertain = (
         select(col(RoomCoverage.room_id))
         .where(
-            col(RoomCoverage.dataset_id) == dataset.id,
+            col(RoomCoverage.dataset_id).in_(dataset_ids(dataset)),
             col(RoomCoverage.room_id) == col(Room.id),
             col(RoomCoverage.completeness) != "complete",
-            col(RoomCoverage.starts_at) < end,
-            col(RoomCoverage.ends_at) > start,
+            left < end,
+            right > start,
         )
         .correlate(Room)
         .exists()
@@ -156,7 +156,7 @@ def find_available_rooms(
             "Check duration and result limit.",
             ["duration_minutes", "limit"],
         )
-    dataset = active_dataset(session)
+    dataset = active_dataset(session, start, end)
     if (
         building is not None
         and session.scalar(select(col(Building.id)).where(col(Building.code) == building)) is None
@@ -170,14 +170,16 @@ def find_available_rooms(
             "coverage_unavailable",
             "No trustworthy schedule coverage is available for this query.",
         )
+    meeting_left, meeting_right = payload_bounds(dataset, col(MeetingOccurrence.starts_at),
+        col(MeetingOccurrence.ends_at), col(MeetingOccurrence.dataset_id))
     conflict = (
         select(col(MeetingOccurrence.id))
         .where(
-            col(MeetingOccurrence.dataset_id) == dataset.id,
+            col(MeetingOccurrence.dataset_id).in_(dataset_ids(dataset)),
             col(MeetingOccurrence.room_id) == col(Room.id),
             col(MeetingOccurrence.status) == "scheduled",
-            col(MeetingOccurrence.starts_at) < end,
-            col(MeetingOccurrence.ends_at) > start,
+            meeting_left < end,
+            meeting_right > start,
         )
         .correlate(Room)
         .exists()
@@ -185,7 +187,7 @@ def find_available_rooms(
     next_booking = (
         select(func.min(col(MeetingOccurrence.starts_at)))
         .where(
-            col(MeetingOccurrence.dataset_id) == dataset.id,
+            col(MeetingOccurrence.dataset_id).in_(dataset_ids(dataset)),
             col(MeetingOccurrence.room_id) == col(Room.id),
             col(MeetingOccurrence.status) == "scheduled",
             col(MeetingOccurrence.starts_at) >= end,
@@ -264,8 +266,8 @@ def room_schedule(
     session: Session, room_id: int, day: date, now: datetime, max_age_hours: float = 36
 ) -> ScheduleResponse:
     room = room_details(session, room_id)
-    dataset = active_dataset(session)
     start, end = campus_day_bounds(day)
+    dataset = active_dataset(session, start, end)
     period = dataset_period(session, dataset)
     if period is None:
         raise APIError(
@@ -281,7 +283,7 @@ def room_schedule(
     windows = (
         session.execute(
             select(RoomCoverage).where(
-                col(RoomCoverage.dataset_id) == dataset.id,
+                col(RoomCoverage.dataset_id).in_(dataset_ids(dataset)),
                 col(RoomCoverage.room_id) == room_id,
                 col(RoomCoverage.starts_at) < end,
                 col(RoomCoverage.ends_at) > start,
@@ -314,7 +316,7 @@ def room_schedule(
             col(MeetingOccurrence.status),
         )
         .where(
-            col(MeetingOccurrence.dataset_id) == dataset.id,
+            col(MeetingOccurrence.dataset_id).in_(dataset_ids(dataset)),
             col(MeetingOccurrence.room_id) == room_id,
             col(MeetingOccurrence.starts_at) < end,
             col(MeetingOccurrence.ends_at) > start,

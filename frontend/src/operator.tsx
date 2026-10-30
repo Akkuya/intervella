@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Dialog, Heading } from 'react-aria-components/Dialog'
 import { Modal, ModalOverlay } from 'react-aria-components/Modal'
 import { ManifestBuilder } from './ManifestBuilder.tsx'
+import { MultiweekImporter } from './MultiweekImporter.tsx'
 import { ThemeControl } from './theme.tsx'
 import { opsRequest } from './operator-api.ts'
 import type { OpsHealth, Preview } from './operator-api.ts'
@@ -216,7 +217,7 @@ export default function Operator() {
             <div className="ops-section-heading">
               <div>
                 <h2>Published dataset</h2>
-                <p>One active snapshot, backed by audited imports.</p>
+                <p>Independent active periods, backed by audited imports.</p>
               </div>
               <button
                 className="button secondary"
@@ -315,6 +316,15 @@ export default function Operator() {
                 </div>
               </>
             )}
+            {!!health?.active_periods?.length && <div className="ops-card">
+              <h3>All active periods</h3>
+              <p>End dates are exclusive. Gaps between periods have no published schedule.</p>
+              {health.active_periods.map((period) => <details key={period.dataset_id}>
+                <summary>{period.start_date} → {period.end_date} · {period.freshness}</summary>
+                <p className="ops-id">{period.dataset_id}</p>
+                {period.days.map((day) => <p key={day.date}>{day.date}: captured {friendly(day.fetched_at)}</p>)}
+              </details>)}
+            </div>}
             <div className="ops-card">
               <h3>Recent import findings</h3>
               {findings.length === 0 ? (
@@ -343,6 +353,8 @@ export default function Operator() {
               <p>Upload → validate → compare → stage → explicitly publish.</p>
             </div>
           </div>
+          <MultiweekImporter csrf={csrf} busy={busy} run={run} onHealth={setHealth} />
+          <details className="ops-card"><summary>Existing inventory editor & single seven-day import</summary>
           <ManifestBuilder
             csrf={csrf}
             busy={busy}
@@ -366,6 +378,7 @@ export default function Operator() {
               setAck(false)
             }}
           />
+          </details>
           {preview && (
             <div className="ops-card ops-comparison">
               <h3>4. Validation & comparison</h3>
@@ -531,14 +544,14 @@ export default function Operator() {
             <Dialog aria-label="Confirm dataset publication">
               <Heading slot="title">Publish this candidate?</Heading>
               <p>
-                This changes the active dataset atomically. Confirm the identifier and current
+                This adds or replaces this period atomically. Other active periods are retained. Confirm the identifier and current
                 comparison before proceeding.
               </p>
               <strong className="ops-id">{candidate}</strong>
               <p>
                 Dates: {preview?.summary.dates[0]} through {preview?.summary.dates[6]}
               </p>
-              <p>Replacing: {preview?.comparison.baseline_dataset_id ?? 'No active dataset'}</p>
+              <p>Replacing: {preview?.comparison.replaced_dataset_id ?? 'No active dataset for these dates'}</p>
               <p>
                 {preview?.summary.rooms} rooms · {preview?.summary.occurrences} bookings
               </p>

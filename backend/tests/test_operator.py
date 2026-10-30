@@ -174,7 +174,7 @@ def test_upload_storage_is_bounded_and_not_public(tmp_path):
     app = create_operator_app(secret="s" * 40, storage=tmp_path)
     with TestClient(app, base_url="http://localhost:8765") as client:
         headers = authenticated(client)
-        for _ in range(5):
+        for _ in range(20):
             assert client.post("/ops/batches", headers=headers).status_code == 200
         assert client.post("/ops/batches", headers=headers).status_code == 429
         assert client.get("/data/operator/").status_code == 404

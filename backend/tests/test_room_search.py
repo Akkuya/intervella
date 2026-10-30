@@ -2,7 +2,7 @@ from datetime import timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from schedule_helpers import DAY_END, NOW, make_schedule
+from schedule_helpers import DAY_END, NOW, activate_schedule, make_schedule
 
 from app import db
 from app.main import create_app, utc_now
@@ -120,11 +120,7 @@ def test_next_known_opening_never_bridges_gaps_or_uncertain_windows(client, post
         record.published_at = NOW
         session.add(record)
         session.flush()
-        from app.models import DatasetState
-
-        state = session.get(DatasetState, 1)
-        state.active_dataset_id = dataset
-        session.add(state)
+        activate_schedule(session.connection(), dataset)
     result = search(client, include_next=True).json()
     rooms = {room["room_id"]: room for room in result["data"]}
     assert rooms[1]["state"] == rooms[2]["state"] == "unknown"
@@ -187,12 +183,10 @@ def test_search_publication_race_stays_on_captured_dataset(client, postgres_engi
     switched = []
 
     def switch(connection, cursor, statement, parameters, context, executemany):
-        if not switched and statement.startswith("SELECT") and "dataset_state" in statement:
+        if not switched and statement.startswith("SELECT") and "active_periods" in statement:
             switched.append(True)
             with postgres_engine.begin() as writer:
-                writer.execute(
-                    text("UPDATE utscvacant.dataset_state SET active_dataset_id=:id"), {"id": new}
-                )
+                activate_schedule(writer, new)
 
     event.listen(postgres_engine, "after_cursor_execute", switch)
     try:

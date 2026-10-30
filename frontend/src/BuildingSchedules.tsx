@@ -44,7 +44,7 @@ export function BuildingSchedules({
     }
   }, [query, buildings])
   const result = useQuery({
-    queryKey: ['building-day', code, date, status?.dataset_id],
+    queryKey: ['building-day', code, date, (status?.publication_id ?? status?.dataset_id)],
     queryFn: ({ signal }) => api.buildingSchedule(code, date, signal),
     enabled: online && !!code && !location.error && !statusPending,
     staleTime: Infinity,

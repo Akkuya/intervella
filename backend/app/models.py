@@ -1,6 +1,7 @@
 """Stable room identities and dataset-scoped schedule records (TRD v1.0)."""
 
-from datetime import datetime
+import datetime as dt
+from datetime import date, datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
@@ -15,7 +16,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, ExcludeConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -109,6 +110,27 @@ class DatasetState(SQLModel, table=True):
     active_dataset_id: UUID | None = Field(default=None, foreign_key="utscvacant.datasets.id")
 
 
+class ActivePeriod(SQLModel, table=True):
+    __tablename__ = "active_periods"
+    __table_args__ = (
+        CheckConstraint("end_date > start_date", name="ck_active_period_interval"),
+        ExcludeConstraint((text("daterange(start_date, end_date, '[)')"), "&&"),
+                          name="active_periods_no_overlap", using="gist"),
+        {"schema": "utscvacant"},
+    )
+    start_date: date = Field(primary_key=True)
+    end_date: date
+    dataset_id: UUID = Field(foreign_key="utscvacant.datasets.id", unique=True)
+
+
+class DatasetSource(SQLModel, table=True):
+    __tablename__ = "dataset_sources"
+    __table_args__ = ({"schema": "utscvacant"},)
+    dataset_id: UUID = Field(primary_key=True, foreign_key="utscvacant.datasets.id")
+    date: dt.date = Field(primary_key=True)
+    fetched_at: datetime = Field(sa_type=DateTime(timezone=True))
+
+
 class RoomCoverage(SQLModel, table=True):
     __tablename__ = "room_coverage"
     __table_args__ = (
@@ -123,6 +145,7 @@ class RoomCoverage(SQLModel, table=True):
     starts_at: datetime = Field(primary_key=True, sa_type=DateTime(timezone=True))
     ends_at: datetime = Field(sa_type=DateTime(timezone=True))
     completeness: str = Field(sa_type=Text)
+    source_date: date | None = None
 
 
 class MeetingOccurrence(SQLModel, table=True):

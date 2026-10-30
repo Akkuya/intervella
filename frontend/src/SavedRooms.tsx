@@ -25,7 +25,7 @@ export function SavedRooms({
   const { value } = useFavourites()
   const location = useSearchLocation(query)
   const result = useQuery({
-    queryKey: ['saved', value.rooms, query, status?.dataset_id],
+    queryKey: ['saved', value.rooms, query, (status?.publication_id ?? status?.dataset_id)],
     queryFn: ({ signal }) => {
       const search = requestParams(location.search)
       return api.roomSearch(

@@ -261,6 +261,7 @@ async function setup(page: import('@playwright/test').Page, bootstrap = false) {
 }
 async function fillImport(page: import('@playwright/test').Page, format = 'weekly') {
   await page.getByRole('button', { name: 'Import timetable', exact: true }).click()
+  await page.getByText('Existing inventory editor & single seven-day import', { exact: true }).click()
   await setDate(page, 'Target start date', days[0])
   await choose(page, 'Source format', format === 'weekly' ? 'Weekly exports' : 'Daily exports')
   await page.getByLabel('Authorized HTML exports', { exact: true }).setInputFiles(
@@ -278,6 +279,8 @@ async function fillImport(page: import('@playwright/test').Page, format = 'weekl
     await page
       .getByLabel(`Actual capture timestamp for synthetic-${index}.html`, { exact: true })
       .fill('2026-10-25T11:00:00Z')
+  for (const [index] of (format === 'weekly' ? [days[0]] : days).entries())
+    await page.getByLabel(`Capture evidence reference for synthetic-${index}.html`, { exact: true }).fill('Synthetic capture log')
   await page.getByLabel('Review reason (short code)', { exact: true }).fill('synthetic-review')
   await page
     .getByRole('checkbox', { name: 'I reviewed the target dates, year and source-file mappings.' })
@@ -514,6 +517,7 @@ test('logout clears a staged candidate and permits a new private import after lo
   await page.getByLabel('Operator secret').fill('synthetic-secret-not-a-real-credential')
   await page.getByRole('button', { name: 'Unlock private dashboard' }).click()
   await page.getByRole('button', { name: 'Import timetable', exact: true }).click()
+  await page.getByText('Existing inventory editor & single seven-day import', { exact: true }).click()
   await expect(page.getByLabel('Authorized HTML exports', { exact: true })).toBeEnabled()
   await expect(page.getByText('Staged candidate:', { exact: false })).toHaveCount(0)
 })
@@ -577,6 +581,7 @@ test('legacy v1 manifests without source_format retain daily profile compatibili
 }) => {
   await setup(page, true)
   await page.getByRole('button', { name: 'Import timetable', exact: true }).click()
+  await page.getByText('Existing inventory editor & single seven-day import', { exact: true }).click()
   await page.getByText('Approved inventory profile — bootstrap required', { exact: true }).click()
   const legacy = generated('daily').draft
   const { source_format, ...value } = legacy
@@ -593,4 +598,68 @@ test('legacy v1 manifests without source_format retain daily profile compatibili
   await expect(
     compatibility.getByRole('checkbox', { name: 'Weekly exports', exact: true }),
   ).not.toBeChecked()
+})
+
+
+test('multiweek queue requires evidence, stages separately and publishes an explicit selection', async ({ page }) => {
+  await setup(page)
+  const candidates = ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222']
+  let publications = 0
+  await page.route('**/ops/batches/*/discover', async (route) => {
+    const groups = ['2026-11-01', '2026-11-08'].map((start, i) => {
+      const a = generated()
+      a.start_date = a.draft.start_date = start
+      a.summary.dates = Array.from({ length: 7 }, (_, d) => `2026-11-${String(1 + i * 7 + d).padStart(2, '0')}`)
+      a.files[0].file = `source-${i + 1}.html`
+      a.files[0].period = start
+      a.draft.weeks = [{ week_start: start, file: a.files[0].file, fetched_at: '' }]
+      return { start_date: start, batch_id: `week-${i}`, blocking: [], analysis: a,
+        files: [{ file: a.files[0].file, format: 'weekly', period: start, date_evidence: 'operator-confirmed-start-year' }] }
+    })
+    await route.fulfill({ json: { groups, exceptions: [], profile: {
+      version: 1, source_formats: ['weekly'], window: generated().draft.window,
+      buildings: generatedBuildings, expected_rooms: 1, expected_buildings: 1,
+      review_reason: 'synthetic-review', reviewed_at: '2026-10-25T11:00:00Z',
+    } } })
+  })
+  await page.route('**/ops/batches/week-*/stage', (route) => route.fulfill({
+    json: { dataset_id: candidates[route.request().url().includes('week-0') ? 0 : 1] },
+  }))
+  await page.route('**/ops/publications', async (route) => {
+    const payload = route.request().postDataJSON()
+    expect(payload.confirm_dataset_ids).toEqual(candidates)
+    expect(payload.review_acknowledged).toBe(true)
+    expect(payload.baseline_dataset_id).toBe(dataset)
+    publications++
+    await route.fulfill({ json: { health, publications: [] } })
+  })
+  await page.getByRole('button', { name: 'Import timetable', exact: true }).click()
+  const queue = page.getByRole('region', { name: 'Multiweek timetable importer' })
+  await queue.getByLabel('Weekly export start year, if absent from HTML').fill('2026')
+  await queue.getByLabel('Choose or drop authorized HTML exports').setInputFiles([0, 1].map((i) => ({
+    name: `week-${i}.html`, mimeType: 'text/html', buffer: Buffer.from('<html>Synthetic</html>'),
+  })))
+  await expect(queue.getByText('Week starting 2026-11-08', { exact: false })).toBeVisible()
+  await queue.getByLabel('Review reason code').fill('weekly-source-review')
+  await queue.getByRole('checkbox', { name: /I reviewed selected dates/ }).check()
+  await queue.getByRole('button', { name: 'Approve eligible windows & validate selected weeks' }).click()
+  await expect(page.getByRole('alert')).toContainText('capture timestamp')
+  const timestamps = queue.getByLabel('Actual capture timestamp, including Z or UTC offset')
+  const evidence = queue.getByLabel('Evidence reference (capture log, source export metadata, or recorded retrieval)')
+  for (let i = 0; i < 2; i++) {
+    await timestamps.nth(i).fill('2026-10-25T11:00:00Z')
+    await evidence.nth(i).fill('Synthetic recorded retrieval')
+  }
+  await queue.getByRole('checkbox', { name: /I reviewed selected dates/ }).check()
+  await queue.getByRole('button', { name: 'Approve eligible windows & validate selected weeks' }).click()
+  await expect(queue.getByRole('button', { name: 'Stage reviewed weeks' })).toBeDisabled()
+  await queue.getByRole('checkbox', { name: /I reviewed selected dates/ }).check()
+  await queue.getByRole('button', { name: 'Stage reviewed weeks' }).click()
+  expect(publications).toBe(0)
+  await queue.getByRole('button', { name: 'Review atomic publication' }).click()
+  await expect(queue.getByRole('button', { name: 'Confirm publish selected datasets' })).toBeDisabled()
+  await queue.getByRole('checkbox', { name: /I reviewed selected dates/ }).check()
+  await queue.getByRole('button', { name: 'Confirm publish selected datasets' }).click()
+  await expect(queue.getByText('The selected publication transaction committed.', { exact: false })).toBeVisible()
+  expect(publications).toBe(1)
 })

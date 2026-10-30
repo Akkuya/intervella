@@ -1,6 +1,9 @@
 // Mirrors the public Pydantic responses in backend/app/schemas.py. No database access.
 export interface Freshness {
   dataset_id: string
+  publication_id?: string | null
+  dataset_ids?: string[]
+  sources?: { dataset_id: string; date: string | null; fetched_at: string; freshness: 'fresh' | 'stale' }[]
   source_fetched_at: string
   freshness: 'fresh' | 'stale'
   generated_at: string
@@ -176,6 +179,11 @@ const freshnessShape = (value: unknown) =>
   ['fresh', 'stale'].includes(value.freshness as string) &&
   Array.isArray(value.warnings) &&
   value.warnings.every(text)
+  && (value.publication_id == null || text(value.publication_id))
+  && (value.dataset_ids === undefined || (Array.isArray(value.dataset_ids) && value.dataset_ids.every(text)))
+  && (value.sources === undefined || (Array.isArray(value.sources) && value.sources.every((s: unknown) =>
+    record(s) && text(s.dataset_id) && (s.date === null || text(s.date)) && instant(s.fetched_at) &&
+    ['fresh', 'stale'].includes(s.freshness as string))))
 const buildingsShape = (value: unknown) =>
   record(value) &&
   Array.isArray(value.data) &&

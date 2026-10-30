@@ -3,7 +3,7 @@ from datetime import timedelta
 import pytest
 from fastapi.testclient import TestClient
 from ingestion_helpers import write_large_bundle
-from schedule_helpers import DAY_END, DAY_START, NOW, make_schedule
+from schedule_helpers import DAY_END, DAY_START, NOW, activate_schedule, make_schedule
 from sqlalchemy import event
 
 from app import db
@@ -184,12 +184,10 @@ def test_building_calendar_publication_race_uses_one_snapshot(client, postgres_e
     switched = []
 
     def after_capture(connection, cursor, statement, parameters, context, executemany):
-        if not switched and statement.startswith("SELECT") and "dataset_state" in statement:
+        if not switched and statement.startswith("SELECT") and "active_periods" in statement:
             switched.append(True)
             with postgres_engine.begin() as writer:
-                writer.execute(
-                    text("UPDATE utscvacant.dataset_state SET active_dataset_id=:id"), {"id": new}
-                )
+                activate_schedule(writer, new)
 
     event.listen(postgres_engine, "after_cursor_execute", after_capture)
     try:

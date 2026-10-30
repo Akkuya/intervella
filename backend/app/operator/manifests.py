@@ -7,7 +7,7 @@ import re
 from datetime import date, timedelta
 from pathlib import Path
 
-from app.ingest.local import MAX_HTML_BYTES, IngestionError, _read
+from app.ingest.local import MAX_HTML_BYTES, IngestionError, _read, local_instant
 from app.ingest.parser import parse_schedule
 from app.ingest.weekly import parse_weekly
 from app.operator.profiles import Profile
@@ -58,6 +58,8 @@ def analyze_sources(
             html = content.decode("utf-8-sig")
         except UnicodeError:
             raise IngestionError("invalid_source_encoding") from None
+        if not re.search(r"</html\s*>", html, re.I):
+            raise IngestionError("incomplete_source_document", report={"file": path.name})
         matches = []
         try:
             daily = parse_schedule(html, strict=True)
@@ -96,6 +98,8 @@ def analyze_sources(
                         "capacity": room["capacity"],
                         "window": _window(room["row_minutes"]),
                         "row_minutes": room["row_minutes"],
+                        "bulk_eligible": all(w["completeness"] == "complete"
+                            for day in room["days"] for w in day["coverage"]),
                     }
                 )
                 occurrences += sum(
@@ -112,11 +116,18 @@ def analyze_sources(
                             "capacity": room["capacity"],
                             "window": _window(building["row_minutes"]),
                             "row_minutes": building["row_minutes"],
+                            "bulk_eligible": all(w["completeness"] == "complete" for w in room["coverage"]),
                         }
                     )
                     occurrences += len(room["events"])
         keys = set()
         for room in current:
+            try:
+                for day in (parsed if kind == "weekly" else [period]):
+                    for minute in room["row_minutes"]:
+                        local_instant(day, minute)
+            except IngestionError:
+                room["bulk_eligible"] = False
             key = (room["source_building"], room["source_name"])
             if key in keys:
                 raise IngestionError("duplicate_identity")
@@ -204,7 +215,10 @@ def analyze_sources(
                     and expected != room[field]
                 ):
                     differences[changed].append(
-                        {"room": name, "expected": expected, "observed": room[field]}
+                        {"room": name, "source_building": raw_building,
+                         "expected": expected, "observed": room[field],
+                         "eligible": room["bulk_eligible"] and not missing
+                            and not any(i["severity"] == "blocking" for i in issues)}
                     )
             continue
         prefix, number = _label_parts(name)

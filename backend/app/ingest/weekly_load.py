@@ -25,6 +25,7 @@ class WeeklySource(ManifestModel):
     week_start: date
     file: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,100}\.html$")
     fetched_at: AwareDatetime
+    capture_evidence: str | None = Field(default=None, min_length=1, max_length=500)
 
 
 class WeeklyManifest(ManifestModel):
@@ -36,6 +37,7 @@ class WeeklyManifest(ManifestModel):
     window: Window
     weeks: list[WeeklySource] = Field(min_length=1, max_length=2)
     buildings: list[SourceBuilding] = Field(min_length=1, max_length=50)
+    review_audit: dict | None = None
 
 
 def load_weekly(directory: Path, raw: bytes, digest):
@@ -80,7 +82,8 @@ def load_weekly(directory: Path, raw: bytes, digest):
                 )
             parsed_days[day] = {"date": str(day), "buildings": list(buildings.values())}
             data[day] = content
-            snapshots.append(Snapshot(date=day, fetched_at=source.fetched_at))
+            snapshots.append(Snapshot(date=day, fetched_at=source.fetched_at,
+                                      capture_evidence=source.capture_evidence))
             provenance[day] = {
                 "source_format": "weekly",
                 "file": source.file,
@@ -94,5 +97,6 @@ def load_weekly(directory: Path, raw: bytes, digest):
         window=manifest.window,
         snapshots=snapshots,
         buildings=manifest.buildings,
+        review_audit=manifest.review_audit,
     )
     return _normalize(compatible, dates, data, digest.hexdigest(), parsed_days, provenance)

@@ -20,6 +20,7 @@ from app.schemas import (
     TimeWindow,
 )
 from app.services.availability import active_dataset, dataset_period, freshness, require_period
+from app.services.published import clip_payload, dataset_ids
 from app.services.intervals import complete_windows, free_windows
 
 MAX_ROOMS = 1000
@@ -38,7 +39,7 @@ def search_rooms(
     if start < now - timedelta(minutes=5) or start > now + timedelta(days=30):
         raise APIError(422, "unsupported_window", "Choose a supported start time.", ["start"])
     horizon = start + timedelta(hours=24)
-    dataset = active_dataset(session)
+    dataset = active_dataset(session, start, horizon)
     require_period(dataset_period(session, dataset), start, end)
     name = normalize_name(query.room_name or "")
     if query.room_name is not None and not name:
@@ -70,7 +71,7 @@ def search_rooms(
     coverage = session.scalars(
         select(RoomCoverage)
         .where(
-            col(RoomCoverage.dataset_id) == dataset.id,
+            col(RoomCoverage.dataset_id).in_(dataset_ids(dataset)),
             col(RoomCoverage.room_id).in_(ids),
             col(RoomCoverage.starts_at) < horizon,
             col(RoomCoverage.ends_at) > start,
@@ -80,7 +81,7 @@ def search_rooms(
     meetings = session.scalars(
         select(MeetingOccurrence)
         .where(
-            col(MeetingOccurrence.dataset_id) == dataset.id,
+            col(MeetingOccurrence.dataset_id).in_(dataset_ids(dataset)),
             col(MeetingOccurrence.room_id).in_(ids),
             col(MeetingOccurrence.starts_at) < horizon,
             col(MeetingOccurrence.ends_at) > start,
@@ -94,7 +95,7 @@ def search_rooms(
         for room_id, value in session.execute(
             select(col(MeetingOccurrence.room_id), func.min(col(MeetingOccurrence.starts_at)))
             .where(
-                col(MeetingOccurrence.dataset_id) == dataset.id,
+                col(MeetingOccurrence.dataset_id).in_(dataset_ids(dataset)),
                 col(MeetingOccurrence.room_id).in_(ids),
                 col(MeetingOccurrence.status) == "scheduled",
                 col(MeetingOccurrence.starts_at) >= end,
@@ -105,12 +106,15 @@ def search_rooms(
     windows: dict[int, list[CoverageWindow]] = defaultdict(list)
     events: dict[int, list[MeetingInfo]] = defaultdict(list)
     for item in coverage:
-        window = CoverageWindow.model_validate(item, from_attributes=True)
+        window = clip_payload(dataset, item, CoverageWindow.model_validate(item, from_attributes=True))
         window.starts_at = max(start, window.starts_at)
         window.ends_at = min(horizon, window.ends_at)
-        windows[item.room_id].append(window)
+        if window.starts_at < window.ends_at:
+            windows[item.room_id].append(window)
     for meeting in meetings:
-        events[meeting.room_id].append(MeetingInfo.model_validate(meeting, from_attributes=True))
+        event = clip_payload(dataset, meeting, MeetingInfo.model_validate(meeting, from_attributes=True))
+        if event.starts_at < event.ends_at:
+            events[meeting.room_id].append(event)
     data = []
     unknown = 0
     for room, building in rooms:

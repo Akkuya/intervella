@@ -7,9 +7,10 @@ from sqlalchemy import select
 from sqlmodel import Session, col
 
 from app.ingest.local import ZONE, Bundle
-from app.ingest.pipeline import ingestion_status
+from app.ingest.pipeline import ingestion_status, period_baseline
 from app.models import (
     Building,
+    ActivePeriod,
     Dataset,
     DatasetState,
     IngestionRun,
@@ -31,12 +32,21 @@ def health(engine):
     history = ingestion_status(engine)
     with engine.connect().execution_options(isolation_level="REPEATABLE READ") as connection:
         with Session(connection) as session, session.begin():
+            active_periods = []
+            for period, published in session.execute(select(ActivePeriod, Dataset).join(
+                Dataset, col(Dataset.id) == col(ActivePeriod.dataset_id)).order_by(col(ActivePeriod.start_date))):
+                source_counts = session.get_one(IngestionRun, published.run_id).counts
+                active_periods.append({"start_date": str(period.start_date), "end_date": str(period.end_date),
+                    "dataset_id": str(published.id), "source_fetched_at": published.source_fetched_at,
+                    "freshness": freshness(published, datetime.now(UTC)).freshness,
+                    "days": [{"date": s["date"], "fetched_at": s["fetched_at"]}
+                             for s in source_counts.get("sources", [])]})
             state = session.get_one(DatasetState, 1)
             dataset = (
                 session.get(Dataset, state.active_dataset_id) if state.active_dataset_id else None
             )
             if dataset is None:
-                return {"active": None, "history": history["runs"]}
+                return {"active": None, "active_periods": active_periods, "history": history["runs"]}
             run = session.get_one(IngestionRun, dataset.run_id)
             counts = run.counts
             windows = session.scalars(
@@ -97,6 +107,7 @@ def health(engine):
                     "days": days,
                 },
                 "history": history["runs"],
+                "active_periods": active_periods,
             }
 
 
@@ -104,8 +115,9 @@ def compare(engine, bundle: Bundle):
     with engine.connect().execution_options(isolation_level="REPEATABLE READ") as connection:
         with Session(connection) as session, session.begin():
             state = session.get_one(DatasetState, 1)
+            previous_id = period_baseline(session, bundle.dates)
             dataset = (
-                session.get(Dataset, state.active_dataset_id) if state.active_dataset_id else None
+                session.get(Dataset, previous_id) if previous_id else None
             )
             previous = session.get_one(IngestionRun, dataset.run_id).counts if dataset else {}
             old = {
@@ -154,18 +166,23 @@ def compare(engine, bundle: Bundle):
                 warnings.append("unknown_coverage")
             if datetime.now(UTC) - bundle.source_fetched_at > timedelta(hours=36):
                 warnings.append("stale_source")
-            if dataset and bundle.source_fetched_at <= dataset.source_fetched_at:
+            if dataset and bundle.source_fetched_at < dataset.source_fetched_at:
                 warnings.append("older_source")
-            old_sources = {s["date"]: s["fetched_at"] for s in previous.get("sources", [])}
+            old_sources = {s["date"]: s for s in previous.get("sources", [])}
             if any(
                 s["date"] in old_sources
                 and datetime.fromisoformat(s["fetched_at"])
-                < datetime.fromisoformat(old_sources[s["date"]])
+                < datetime.fromisoformat(old_sources[s["date"]]["fetched_at"])
                 for s in bundle.sources
             ):
                 warnings.append("source_day_regression")
+            if any(s["date"] in old_sources and
+                   datetime.fromisoformat(s["fetched_at"]) == datetime.fromisoformat(old_sources[s["date"]]["fetched_at"])
+                   and s["sha256"] != old_sources[s["date"]]["sha256"] for s in bundle.sources):
+                warnings.append("same_capture_different_content")
             return {
-                "baseline_dataset_id": str(dataset.id) if dataset else None,
+                "baseline_dataset_id": str(state.active_dataset_id) if state.active_dataset_id else None,
+                "replaced_dataset_id": str(dataset.id) if dataset else None,
                 "added_rooms": ["-".join(k) for k in sorted(new.keys() - old.keys())],
                 "missing_rooms": ["-".join(k) for k in sorted(old.keys() - new.keys())],
                 "capacity_changes": [

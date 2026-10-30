@@ -55,6 +55,7 @@ def prepare(client, headers, key, start):
         draft["inventory_review_reason"] = "inventory-independent"
     for item in draft.get("weeks", draft.get("snapshots", [])):
         item["fetched_at"] = "2026-10-14T11:00:00Z"
+        item["capture_evidence"] = "Synthetic fixture capture record"
     review = {
         "analysis_hash": result["analysis_hash"],
         "profile_version": profile["version"],
@@ -74,6 +75,9 @@ def prepare(client, headers, key, start):
         ("/ops/inventory-profile", "PUT"),
         ("/ops/batches/no/analyze", "POST"),
         ("/ops/batches/no/manifest", "POST"),
+        ("/ops/batches/no/discover", "POST"),
+        ("/ops/batches/no/coverage-profile", "POST"),
+        ("/ops/publications", "POST"),
     ],
 )
 def test_new_operator_routes_require_auth_and_csrf(tmp_path, route, method):

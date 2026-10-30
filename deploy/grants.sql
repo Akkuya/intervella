@@ -15,6 +15,8 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA utscvacant TO intervella_ingestor
 GRANT USAGE ON SCHEMA student_auth TO intervella_student_auth, intervella_auth_admin;
 GRANT SELECT, INSERT, UPDATE, DELETE ON student_auth.session, student_auth.attempt TO intervella_student_auth;
 GRANT SELECT ON student_auth.control TO intervella_student_auth;
+-- PostgreSQL row locks need UPDATE on a column; id is constrained to 1, never policy.
+GRANT UPDATE (id) ON student_auth.control TO intervella_student_auth;
 GRANT SELECT, UPDATE ON student_auth.control TO intervella_auth_admin;
 GRANT DELETE ON student_auth.session TO intervella_auth_admin;
 COMMIT;

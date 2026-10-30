@@ -169,9 +169,10 @@ def test_deployment_grants_keep_runtime_roles_separate(postgres_engine):
             conn.exec_driver_sql("RESET ROLE")
             conn.exec_driver_sql('SET LOCAL ROLE "' + auth + '"')
             conn.exec_driver_sql("SELECT * FROM student_auth.session")
+            conn.exec_driver_sql("SELECT * FROM student_auth.control FOR SHARE")
             for query in [
                 "SELECT * FROM utscvacant.rooms",
-                "UPDATE student_auth.control SET id=id",
+                "UPDATE student_auth.control SET policy=policy",
                 "CREATE TABLE student_auth.forbidden(id int)",
             ]:
                 with pytest.raises(DBAPIError), conn.begin_nested():

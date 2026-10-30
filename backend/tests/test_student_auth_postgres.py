@@ -370,8 +370,14 @@ def test_documented_auth_role_has_no_schedule_or_policy_write_access(connection)
         )
     )
     connection.execute(text(f'GRANT SELECT ON student_auth.control TO "{role}"'))
+    connection.execute(text(f'GRANT UPDATE(id) ON student_auth.control TO "{role}"'))
+    config = beta_config()
+    connection.execute(
+        text("UPDATE student_auth.control SET policy=:policy"), {"policy": config.fingerprint}
+    )
     connection.execute(text(f'SET LOCAL ROLE "{role}"'))
     assert connection.scalar(text("SELECT id FROM student_auth.control")) == 1
+    StudentAuth(config).policy(connection, lock=True)
     connection.execute(
         sessions.insert().values(
             id="a" * 64,

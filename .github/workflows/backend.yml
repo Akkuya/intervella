@@ -49,4 +49,4 @@ jobs:
       - run: uv run mypy .
       - run: uv run pytest --require-postgres
         env:
-          TEST_DATABASE_URL: postgresql+psycopg://postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgres
+          TEST_DATABASE_URL: postgresql+psycopg://postgres@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/postgres

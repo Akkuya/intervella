@@ -24,7 +24,7 @@ def database_url(variable: str = "DATABASE_URL") -> URL:
 
 
 def create_db_engine(variable: str = "DATABASE_URL") -> Engine:
-    mode = os.getenv("DATABASE_POOL_MODE", "session")
+    mode = os.getenv("DATABASE_POOL_MODE") or "session"
     if mode not in {"session", "transaction"}:
         raise ValueError("DATABASE_POOL_MODE must be session or transaction")
     pooled = mode == "transaction"

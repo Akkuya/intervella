@@ -68,3 +68,13 @@ def test_unknown_pool_mode_is_rejected(monkeypatch):
     monkeypatch.setenv("DATABASE_POOL_MODE", "unknown")
     with pytest.raises(ValueError, match="DATABASE_POOL_MODE"):
         db.create_db_engine()
+
+
+def test_empty_pool_mode_keeps_local_defaults(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/example")
+    monkeypatch.setenv("DATABASE_POOL_MODE", "")
+    engine = db.create_db_engine()
+    try:
+        assert engine.pool.size() == 5
+    finally:
+        engine.dispose()

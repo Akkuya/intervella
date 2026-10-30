@@ -79,9 +79,11 @@ GRANT USAGE ON SCHEMA student_auth TO intervella_student_auth;
 GRANT SELECT, INSERT, UPDATE, DELETE
   ON student_auth.session, student_auth.attempt TO intervella_student_auth;
 GRANT SELECT ON student_auth.control TO intervella_student_auth;
+-- FOR SHARE requires UPDATE on a column; id is fixed to 1 by a CHECK constraint.
+GRANT UPDATE (id) ON student_auth.control TO intervella_student_auth;
 ```
 
-Do not grant classroom access to this role, schema CREATE, control-row UPDATE, ownership or administrative roles. The schedule connection retains its existing read-only privileges. The activation administrator needs auth-schema USAGE, control SELECT/UPDATE and session DELETE; it is not needed by the web server. PostgreSQL regression tests exercise these documented minimum runtime grants.
+Do not grant classroom access to this role, schema CREATE, policy-column UPDATE, control INSERT/DELETE, ownership or administrative roles. The schedule connection retains its existing read-only privileges. The activation administrator needs auth-schema USAGE, control SELECT/UPDATE and session DELETE; it is not needed by the web server. PostgreSQL regression tests exercise these documented minimum runtime grants.
 
 Create private runtime configuration only if it does not already exist. Single-quote secret values in the dotenv file so `$` in scrypt hashes or URLs remains literal; URL-encode database-password special characters:
 

@@ -18,11 +18,17 @@ Unknown hosts/forwarded headers must fail closed; pooler settings must not leak 
 
 ## Tasks
 
-- [ ] Connection compatibility: red/green unit and PostgreSQL tests in backend/tests/test_db.py and test_deployment_postgres.py; update only backend/app/db.py. Commit pooler support.
-- [ ] Hosting: backend/app/hosting.py and backend/vercel_app.py, vercel.json, .vercelignore, pinned supported runtime versions. Test ingress, fail-closed configuration, canonical host, static/public routing and operator exclusions. Commit hosting config.
-- [ ] Synthetic staging and smoke: generate seven explicitly scoped dated files using synthetic room names; validate/stage with the existing pipeline and publish only with the existing explicit command. Provide safe smoke checks using the existing auth/API. Test both on disposable PostgreSQL and mocked HTTPS. Commit tools and manual approval-gated staging workflow.
-- [ ] Documentation/review: DEPLOYMENT.md with exact environment/roles/migration/policy/domain steps, DNS values copied from Vercel rather than guessed, costs/quotas/backup/rollback/cleanup. Run both root checks, focused deployment tests, schema/build inspection, independent final review. Push feature branch, open PR main, verify CI. No merge/deploy.
+- [x] Connection compatibility: red/green unit and PostgreSQL tests in backend/tests/test_db.py and test_deployment_postgres.py; update only backend/app/db.py. Commit pooler support.
+- [x] Hosting: backend/app/hosting.py and backend/vercel_app.py, vercel.json, .vercelignore, pinned supported runtime versions. Test ingress, fail-closed configuration, canonical host, static/public routing and operator exclusions. Commit hosting config.
+- [x] Synthetic staging and smoke: generate seven explicitly scoped dated files using synthetic room names; validate/stage with the existing pipeline and publish only with the existing explicit command. Provide safe smoke checks using the existing auth/API. Test both on disposable PostgreSQL and mocked HTTPS. Commit tools and manual approval-gated staging workflow.
+- [x] Documentation/review: DEPLOYMENT.md with exact environment/roles/migration/policy/domain steps, DNS values copied from Vercel rather than guessed, costs/quotas/backup/rollback/cleanup. Run both root checks, focused deployment tests, schema/build inspection, independent final review. Push feature branch, open PR main, verify CI. No merge/deploy.
 
 ## Verification record
 
-Pending implementation. Cloud HTTPS, actual Supabase pooler, provider account configuration and Porkbun DNS verification require separately authorized staging access; local tests do not prove those operations.
+Both root check modes passed. Full root run: 385 backend, 32 frontend unit and 246 browser tests passed. A subsequent complete backend run with the final empty-environment and restricted-role lock regressions: 386 passed, two existing dependency deprecations. Ruff/mypy/TypeScript/ESLint/Prettier/builds and zero-vulnerability frontend audit passed. Published Vercel schema and actionlint 1.7.12 validation passed; actionlint shellcheck/pyflakes integrations were not installed.
+
+Independent review found the PostgreSQL FOR SHARE privilege requirement missed by the prior plain-SELECT role test. Reproduced the denial, then granted UPDATE(id) only on the id=1 control singleton and tested the lock plus continued denial of policy edits; existing auth documentation corrected. Windows empty pool-mode handling was also fixed/tested. Neither change grants policy activation to the runtime.
+
+No frontend bundle growth: student 577.12 kB / 177.44 gzip; operator 530.50 / 163.20, unchanged from main. Public student output inspected and CSP exercised in desktop/mobile browser tests. Local Vercel build cannot be claimed verified without an authorized project link; a source-only offline fixture was removed after that check. No cloud resources or DNS were created/changed.
+
+Cloud HTTPS, actual Supabase pooler, provider account configuration and Porkbun DNS verification require separately authorized staging access; local tests do not prove those operations.

@@ -3,14 +3,14 @@ import test from 'node:test'
 import { api, ApiError } from '../../src/api.ts'
 import { room, schedule, available } from '../e2e/fixtures.ts'
 
-test('client uses same-origin API, encoded parameters, cancellation and no credentials', async (t) => {
+test('client uses same-origin API, encoded parameters, cancellation and same-origin session cookies', async (t) => {
   const signal = new AbortController().signal
   t.mock.method(globalThis, 'fetch', async (url: string, options: RequestInit) => {
     assert.equal(new URL(url, 'https://example.test').pathname, '/api/v1/availability')
     assert.equal(new URL(url, 'https://example.test').searchParams.get('building'), 'A&other=value')
     assert.equal(options.signal, signal)
-    assert.equal(options.credentials, 'omit')
-    assert.equal(options.cache, 'no-cache')
+    assert.equal(options.credentials, 'same-origin')
+    assert.equal(options.cache, 'no-store')
     return new Response(JSON.stringify({ error: { code: 'invalid_building' } }), { status: 422 })
   })
   await assert.rejects(
@@ -93,7 +93,7 @@ test('room search encodes batches and rejects mismatched identities or unproven 
       '1',
       '2',
     ])
-    assert.equal(options.credentials, 'omit')
+    assert.equal(options.credentials, 'same-origin')
     return new Response(JSON.stringify(response))
   })
   await api.roomSearch({ start: available.query.start, room_ids: [1, 2] })
@@ -106,3 +106,42 @@ test('room search encodes batches and rejects mismatched identities or unproven 
     code: 'invalid_response',
   })
 })
+for (const [status, code] of [
+  [401, 'authentication_required'],
+  [503, 'auth_unavailable'],
+] as const) {
+  test(`auth denial ${status} notifies the central session gate without exposing server text`, async (t) => {
+    const original = Object.getOwnPropertyDescriptor(globalThis, 'window')
+    const events: string[] = []
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        dispatchEvent: (event: Event) => {
+          events.push(event.type)
+          return true
+        },
+      },
+    })
+    t.after(() => {
+      if (original) Object.defineProperty(globalThis, 'window', original)
+      else Reflect.deleteProperty(globalThis, 'window')
+    })
+    t.mock.method(
+      globalThis,
+      'fetch',
+      async () =>
+        new Response(
+          JSON.stringify({ error: { code, message: 'synthetic-private-provider-detail' } }),
+          { status },
+        ),
+    )
+    await assert.rejects(
+      api.status(),
+      (error: unknown) =>
+        error instanceof ApiError &&
+        error.code === code &&
+        !error.message.includes('private-provider'),
+    )
+    assert.deepEqual(events, ['intervella:auth-required'])
+  })
+}

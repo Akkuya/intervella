@@ -143,6 +143,17 @@ function scheduleOn(date: string): ScheduleResponse {
 
 export async function mockAPI(page: Page) {
   await page.clock.install({ time: new Date(NOW) })
+  await page.route('**/auth/**', (route) =>
+    route.fulfill({
+      json: {
+        authenticated: true,
+        mode: 'beta',
+        csrf: 'a'.repeat(64),
+        expires_at: '2099-01-01T00:00:00Z',
+        needs_renewal: false,
+      },
+    }),
+  )
   await page.route('**/api/v1/**', async (route) => {
     const path = new URL(route.request().url()).pathname
     const daySchedule = scheduleOn(

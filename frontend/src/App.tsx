@@ -19,6 +19,7 @@ import {
 import { requestParams, searchParams } from './search.ts'
 import type { SearchInput } from './search.ts'
 import { campusTimeLabel, dateLabel, nextBookingLabel } from './time.ts'
+import { StudentSignOut } from './StudentAccess.tsx'
 import { ThemeControl } from './theme.tsx'
 import { timeText } from './picker-time.ts'
 import { roomLabel } from './rooms.ts'
@@ -263,7 +264,10 @@ export default function App() {
           <img className="brand-mark" src="/assets/intervella.svg" alt="" width="40" height="40" />
           <span>Intervella</span>
         </a>
-        <ThemeControl />
+        <div className="account-controls">
+          <ThemeControl />
+          <StudentSignOut />
+        </div>
         <nav className="app-navigation" aria-label="Application">
           <a
             href={`?${findParams}`}

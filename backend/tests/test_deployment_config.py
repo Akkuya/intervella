@@ -93,3 +93,19 @@ def test_public_build_rejects_operator_and_private_artifacts(tmp_path):
     (tmp_path / "operator.html").write_text("Private operator")
     with pytest.raises(ValueError):
         verify_public_build(tmp_path)
+
+
+def test_staging_release_rejects_mislinked_production_or_wrong_account():
+    import pytest
+    from verify_staging_project import verify_staging_project
+
+    project = {"projectName": "intervella-staging", "projectId": "prj_stage", "orgId": "team_stage"}
+    verify_staging_project(project, "prj_stage", "team_stage")
+    for changed in [
+        project | {"projectName": "intervella"},
+        project | {"projectName": "intervella-production"},
+        project | {"projectId": "prj_other"},
+        project | {"orgId": "team_other"},
+    ]:
+        with pytest.raises(ValueError, match="dedicated"):
+            verify_staging_project(changed, "prj_stage", "team_stage")

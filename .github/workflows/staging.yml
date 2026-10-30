@@ -104,6 +104,7 @@ jobs:
         run: |
           test -n "$VERCEL_TOKEN"
           npx --yes vercel@${VERCEL_CLI_VERSION} pull --yes --environment=production
+          python backend/verify_staging_project.py
           npx --yes vercel@${VERCEL_CLI_VERSION} build --prod
           npx --yes vercel@${VERCEL_CLI_VERSION} deploy --prebuilt --prod
       - name: Smoke test canonical staging origin

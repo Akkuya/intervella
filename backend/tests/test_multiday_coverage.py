@@ -108,7 +108,7 @@ def test_migration_preserves_rows_and_refuses_lossy_downgrade(postgres_engine):
     with pytest.raises(DBAPIError), postgres_engine.begin() as connection:
         command.downgrade(migration_config(connection), "0001")
     with postgres_engine.connect() as connection:
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0002"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0003"
 
 
 def test_conflicting_unknown_window_is_not_overridden_by_complete_window(postgres_engine):

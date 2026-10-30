@@ -324,7 +324,11 @@ async function get<T>(
 ): Promise<T> {
   let response: Response
   try {
-    response = await fetch(`/api/v1/${path}`, { signal, credentials: 'omit', cache: 'no-cache' })
+    response = await fetch(`/api/v1/${path}`, {
+      signal,
+      credentials: 'same-origin',
+      cache: 'no-store',
+    })
   } catch (cause) {
     if (signal?.aborted || (cause instanceof DOMException && cause.name === 'AbortError'))
       throw cause
@@ -336,6 +340,8 @@ async function get<T>(
   } catch {
     throw new ApiError('invalid_response')
   }
+  if (response.status === 401 && typeof window !== 'undefined')
+    window.dispatchEvent(new Event('intervella:auth-required'))
   if (!response.ok) {
     const error =
       typeof body === 'object' && body !== null && 'error' in body ? body.error : undefined
@@ -346,6 +352,8 @@ async function get<T>(
       typeof error.code === 'string'
         ? error.code
         : 'request_failed'
+    if (response.status !== 401 && code === 'auth_unavailable' && typeof window !== 'undefined')
+      window.dispatchEvent(new Event('intervella:auth-required'))
     const id = response.headers.get('x-request-id')
     throw new ApiError(code, id && /^[a-zA-Z0-9-]{1,80}$/.test(id) ? id : undefined)
   }

@@ -9,6 +9,8 @@ from app import db, seed
 from app.main import create_app, utc_now
 from app.settings import Settings
 
+pytestmark = pytest.mark.usefixtures("authenticated_student")
+
 
 @pytest.fixture
 def client(postgres_engine, monkeypatch):
@@ -34,7 +36,7 @@ def test_availability_contract(client, postgres_engine):
     assert body["data"][0]["next_booking"] == "2026-10-14T13:00:00Z"
     assert body["meta"]["dataset_id"] == str(dataset)
     assert body["meta"]["unknown_room_count"] == 3
-    assert response.headers["cache-control"] == "no-cache"
+    assert response.headers["cache-control"] == "private, no-store"
     assert response.headers["x-request-id"]
 
 
@@ -142,6 +144,12 @@ def test_cors_allowlist_and_openapi():
             "/api/v1/status",
             "/health/live",
             "/health/ready",
+            "/auth/session",
+            "/auth/beta",
+            "/auth/university/code",
+            "/auth/university/verify",
+            "/auth/renew",
+            "/auth/logout",
         }
         assert set(schema["paths"]) == expected
         assert "ErrorResponse" in schema["components"]["schemas"]

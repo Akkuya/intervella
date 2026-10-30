@@ -6,6 +6,8 @@ from fastapi.testclient import TestClient
 from app.main import create_app
 from app.settings import Settings
 
+pytestmark = pytest.mark.usefixtures("authenticated_student")
+
 
 @pytest.mark.parametrize(
     "values",

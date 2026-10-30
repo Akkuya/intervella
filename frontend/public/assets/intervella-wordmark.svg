@@ -1,4 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 132" role="img" aria-label="Intervella">
+  <rect width="600" height="132" rx="14" fill="#15171B"/>
   <defs>
     <linearGradient id="panel" x1="21" y1="9" x2="77" y2="96" gradientUnits="userSpaceOnUse"><stop stop-color="#686679"/><stop offset="1" stop-color="#262630"/></linearGradient>
     <linearGradient id="lavender" x1="72" y1="4" x2="106" y2="99" gradientUnits="userSpaceOnUse"><stop stop-color="#E0D6FF"/><stop offset="1" stop-color="#A38CF3"/></linearGradient>

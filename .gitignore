@@ -225,3 +225,6 @@ backend/data/
 /frontend/dist-operator/
 
 /.env.student
+
+/.vercel/
+/.env.staging

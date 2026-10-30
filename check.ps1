@@ -3,7 +3,8 @@ param([switch]$Fast)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'scripts/workflow.ps1')
 $savedEnvironment = @{}
-foreach ($name in @('DATABASE_URL', 'TEST_DATABASE_URL', 'INGESTION_DATABASE_URL', 'MIGRATION_DATABASE_URL', 'OPERATOR_SECRET', 'CI')) {
+$studentSecretNames = @(Get-ChildItem Env: | Where-Object { $_.Name -like 'STUDENT_*' } | Select-Object -ExpandProperty Name)
+foreach ($name in (@('DATABASE_URL', 'TEST_DATABASE_URL', 'INGESTION_DATABASE_URL', 'MIGRATION_DATABASE_URL', 'OPERATOR_SECRET', 'CI') + $studentSecretNames)) {
     $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
 }
 $results = New-Object 'System.Collections.Generic.List[object]'
@@ -17,13 +18,14 @@ try {
         Ensure-LocalPostgres $tools.docker $configuration.POSTGRES_CONTAINER $maintenance
     }
     # Tests never inherit development, ingestion or migration connections.
-    foreach ($name in @('DATABASE_URL', 'INGESTION_DATABASE_URL', 'MIGRATION_DATABASE_URL', 'TEST_DATABASE_URL', 'OPERATOR_SECRET')) { [Environment]::SetEnvironmentVariable($name, $null, 'Process') }
+    foreach ($name in (@('DATABASE_URL', 'INGESTION_DATABASE_URL', 'MIGRATION_DATABASE_URL', 'TEST_DATABASE_URL', 'OPERATOR_SECRET') + $studentSecretNames)) { [Environment]::SetEnvironmentVariable($name, $null, 'Process') }
     if (-not $Fast) { $env:TEST_DATABASE_URL = $configuration.TEST_DATABASE_URL }
     $backend = Join-Path $PSScriptRoot 'backend'
     $frontend = Join-Path $PSScriptRoot 'frontend'
     $shell = (Get-Process -Id $PID).Path
     Invoke-WorkflowCheck Workflow 'PowerShell regression' $shell @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'scripts/tests/workflow.tests.ps1')) $PSScriptRoot $results
     Invoke-WorkflowCheck Workflow 'Operator configuration' $shell @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'scripts/tests/operator.tests.ps1')) $PSScriptRoot $results
+    Invoke-WorkflowCheck Workflow 'Student auth config' $shell @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'scripts/tests/student-auth.tests.ps1')) $PSScriptRoot $results
     Invoke-WorkflowCheck Backend 'Ruff lint' $tools.uv @('run', '--no-env-file', '--no-sync', 'ruff', 'check', '.') $backend $results
     Invoke-WorkflowCheck Backend 'Ruff format' $tools.uv @('run', '--no-env-file', '--no-sync', 'ruff', 'format', '--check', '.') $backend $results
     Invoke-WorkflowCheck Backend mypy $tools.uv @('run', '--no-env-file', '--no-sync', 'mypy', '.') $backend $results

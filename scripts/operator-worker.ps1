@@ -2,6 +2,7 @@ $ErrorActionPreference = 'Stop'
 $gate = [Threading.EventWaitHandle]::OpenExisting($env:UTSCVACANT_START_GATE)
 try { if (-not $gate.WaitOne(15000)) { exit 1 } } finally { $gate.Dispose() }
 $env:UTSCVACANT_START_GATE = $null
+foreach ($item in @(Get-ChildItem Env: | Where-Object { $_.Name -like 'STUDENT_*' })) { [Environment]::SetEnvironmentVariable($item.Name, $null, 'Process') }
 $rootDirectory = Split-Path $PSScriptRoot -Parent
 . (Join-Path $PSScriptRoot 'workflow.ps1')
 . (Join-Path $PSScriptRoot 'operator-config.ps1')

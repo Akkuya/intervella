@@ -223,3 +223,5 @@ backend/data/
 /.env.local
 /.env.operator
 /frontend/dist-operator/
+
+/.env.student

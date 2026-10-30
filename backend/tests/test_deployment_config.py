@@ -97,6 +97,7 @@ def test_public_build_rejects_operator_and_private_artifacts(tmp_path):
 
 def test_staging_release_rejects_mislinked_production_or_wrong_account():
     import pytest
+
     from verify_staging_project import verify_staging_project
 
     project = {"projectName": "intervella-staging", "projectId": "prj_stage", "orgId": "team_stage"}

@@ -11,7 +11,7 @@ from app.ingest.pipeline import import_directory, ingestion_status, publish_data
 from app.models import Dataset, DatasetState, IngestionRun, MeetingOccurrence, Room, RoomCoverage
 from app.services.availability import find_available_rooms, room_schedule
 
-pytestmark = pytest.mark.postgres
+pytestmark = [pytest.mark.postgres, pytest.mark.usefixtures("authenticated_student")]
 NOW = datetime(2026, 10, 14, 12, tzinfo=UTC)
 
 

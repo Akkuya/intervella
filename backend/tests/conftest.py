@@ -57,3 +57,11 @@ def connection(postgres_engine):
             yield connection
         finally:
             transaction.rollback()
+
+
+@pytest.fixture
+def authenticated_student(monkeypatch):
+    """Schedule-only contracts authenticate explicitly; auth tests use the real boundary."""
+    from app.student_auth.service import StudentAuth
+
+    monkeypatch.setattr(StudentAuth, "require", lambda self, request: None)

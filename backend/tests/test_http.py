@@ -10,6 +10,9 @@ from time import monotonic, sleep
 import httpx
 import pytest
 from schedule_helpers import make_schedule
+from test_student_auth_unit import PASSWORD, beta_config
+
+from app.student_auth.service import activate_policy
 
 pytestmark = pytest.mark.postgres
 
@@ -28,8 +31,27 @@ def test_real_http_availability(postgres_engine):
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))
         port = listener.getsockname()[1]
+    config = beta_config(origin=f"http://127.0.0.1:{port}")
+    activate_policy(postgres_engine, config)
     environment = {
-        **os.environ,
+        **{
+            key: value
+            for key, value in os.environ.items()
+            if not key.startswith("STUDENT_")
+            and key
+            not in {
+                "TEST_DATABASE_URL",
+                "INGESTION_DATABASE_URL",
+                "MIGRATION_DATABASE_URL",
+                "OPERATOR_SECRET",
+            }
+        },
+        "STUDENT_AUTH_MODE": "beta",
+        "STUDENT_AUTH_ORIGIN": config.origin,
+        "STUDENT_AUTH_EPOCH": config.epoch,
+        "STUDENT_BETA_PASSWORD_HASH": config.password_hash,
+        "STUDENT_BETA_ENDS_AT": config.beta_ends_at.isoformat(),
+        "STUDENT_AUTH_DATABASE_URL": postgres_engine.url.render_as_string(hide_password=False),
         "DATABASE_URL": postgres_engine.url.render_as_string(hide_password=False),
         "FRESHNESS_MAX_AGE_HOURS": "36",
         "MAX_AVAILABILITY_LIMIT": "100",
@@ -64,6 +86,13 @@ def test_real_http_availability(postgres_engine):
                     pass
                 assert monotonic() < deadline, "uvicorn did not become live"
                 sleep(0.05)
+            assert client.get("/api/v1/status").status_code == 401
+            login = client.post(
+                "/auth/beta",
+                json={"passcode": PASSWORD},
+                headers={"Origin": config.origin, "X-Student-Request": "1"},
+            )
+            assert login.status_code == 200
             response = client.get(
                 "/api/v1/availability",
                 params={"start": now.isoformat(), "private_probe": "NEVER_LOG_QUERY"},
@@ -102,6 +131,7 @@ def test_real_http_availability(postgres_engine):
             process.kill()
             output, _ = process.communicate(timeout=5)
     logs = output.decode(errors="replace")
+    assert PASSWORD not in logs
     assert "NEVER_LOG_QUERY" not in logs
     assert "start=" not in logs
     assert f"request_id={response.headers['x-request-id']}" in logs

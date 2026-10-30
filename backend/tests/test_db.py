@@ -37,3 +37,44 @@ def test_engine_has_bounded_pool_and_no_sql_logging(monkeypatch):
         assert engine.hide_parameters is True
     finally:
         engine.dispose()
+
+
+def test_transaction_pooler_disables_local_pool_prepares_and_startup_options(monkeypatch):
+    from sqlalchemy.pool import NullPool
+
+    monkeypatch.setenv("DATABASE_URL", "postgresql://reader:secret@host/example?sslmode=require")
+    monkeypatch.setenv("DATABASE_POOL_MODE", "transaction")
+    original = db.create_engine
+    settings = {}
+
+    def capture(url, **kwargs):
+        settings.update(kwargs)
+        return original(url, **kwargs)
+
+    monkeypatch.setattr(db, "create_engine", capture)
+    engine = db.create_db_engine()
+    try:
+        assert isinstance(engine.pool, NullPool)
+        assert settings["connect_args"]["prepare_threshold"] is None
+        assert "options" not in settings["connect_args"]
+        assert settings["connect_args"]["connect_timeout"] == 5
+        assert engine.hide_parameters and not engine.echo
+    finally:
+        engine.dispose()
+
+
+def test_unknown_pool_mode_is_rejected(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://host/example")
+    monkeypatch.setenv("DATABASE_POOL_MODE", "unknown")
+    with pytest.raises(ValueError, match="DATABASE_POOL_MODE"):
+        db.create_db_engine()
+
+
+def test_empty_pool_mode_keeps_local_defaults(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/example")
+    monkeypatch.setenv("DATABASE_POOL_MODE", "")
+    engine = db.create_db_engine()
+    try:
+        assert engine.pool.size() == 5
+    finally:
+        engine.dispose()

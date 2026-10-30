@@ -1,0 +1,116 @@
+name: Deploy synthetic staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Type synthetic-staging to request an approved staging deployment (never production data)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-synthetic-staging
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    if: github.ref == 'refs/heads/main' && inputs.confirmation == 'synthetic-staging'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['5432/tcp']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: '0.9.28'
+          python-version: '3.13'
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Backend checks on disposable PostgreSQL only
+        working-directory: backend
+        env:
+          TEST_DATABASE_URL: postgresql+psycopg://postgres@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/postgres
+        run: |
+          uv sync --locked
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run mypy .
+          uv run pytest --require-postgres
+      - name: Frontend checks and student artifact inspection
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run lint
+          npm run format:check
+          npm run typecheck
+          npm test
+          npm run build
+          npm run build:operator
+          npm audit --audit-level=high
+          ../backend/.venv/bin/python ../backend/verify_public_build.py dist
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+
+  deploy:
+    needs: checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: staging
+    env:
+      VERCEL_CLI_VERSION: '65.8.0'
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      STAGING_ORIGIN: ${{ vars.INTERVELLA_STAGING_ORIGIN }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: '0.9.28'
+          python-version: '3.13'
+      - name: Require an existing isolated staging project and approved origin
+        run: |
+          test -n "$VERCEL_ORG_ID"
+          test -n "$VERCEL_PROJECT_ID"
+          python - <<'PY'
+          import os, re
+          value = os.environ['STAGING_ORIGIN']
+          if not re.fullmatch(r'https://(?:staging\.intervella\.ca|intervella-staging[a-z0-9-]*\.vercel\.app)', value):
+              raise SystemExit('Only the dedicated synthetic staging origin is allowed')
+          PY
+      - name: Build and deploy only the dedicated staging project
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          test -n "$VERCEL_TOKEN"
+          npx --yes vercel@${VERCEL_CLI_VERSION} pull --yes --environment=production
+          python backend/verify_staging_project.py
+          npx --yes vercel@${VERCEL_CLI_VERSION} build --prod
+          npx --yes vercel@${VERCEL_CLI_VERSION} deploy --prebuilt --prod
+      - name: Smoke test canonical staging origin
+        env:
+          INTERVELLA_SMOKE_PASSCODE: ${{ secrets.INTERVELLA_SMOKE_PASSCODE }}
+        run: |
+          test -n "$INTERVELLA_SMOKE_PASSCODE"
+          uv --directory backend sync --locked --no-dev
+          uv --directory backend run --no-env-file python deployment_smoke.py "$STAGING_ORIGIN"
